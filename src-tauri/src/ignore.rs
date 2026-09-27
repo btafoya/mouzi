@@ -183,15 +183,15 @@ mod tests {
     fn multiple_wildcards_and_spaces() {
         assert!(is_ignored(
             "The Chronicle Herald (Metro)_20260612.txt",
-            &["*metro*".to_string()]
+            &["*Metro*".to_string()]
         ));
         assert!(is_ignored(
             "The Chronicle Herald (Metro)_20260612.txt",
-            &["*chronicle herald*".to_string()]
+            &["*Chronicle Herald*".to_string()]
         ));
         assert!(is_ignored(
             "some.Metro.file.txt",
-            &["*metro*.txt".to_string()]
+            &["*Metro*.txt".to_string()]
         ));
         assert!(is_ignored("file.name.txt", &["file.*.txt".to_string()]));
         assert!(!is_ignored("foo.txt", &["*metro*".to_string()]));
