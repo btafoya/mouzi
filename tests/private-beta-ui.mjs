@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { mkdir, writeFile, readFile, access, unlink } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -24,7 +24,14 @@ async function start() {
   child = spawn(exe, stable ? ['--add-folder', fixture] : [], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=19221 --remote-debugging-address=127.0.0.1' } });
   child.stdout.on('data', chunk => console.log(String(chunk)));
   child.stderr.on('data', chunk => console.error(String(chunk)));
-  await until(async () => { if (child.exitCode !== null) throw Error(`Application exited during startup: ${child.exitCode}`); try { return (await fetch('http://127.0.0.1:19221/json/version', { signal: AbortSignal.timeout(2000) })).ok; } catch { return false; } }, 'Application debug endpoint did not start', stable ? 120000 : 15000);
+  try {
+    await until(async () => { if (child.exitCode !== null) throw Error(`Application exited during startup: ${child.exitCode}`); try { return (await fetch('http://127.0.0.1:19221/json/version', { signal: AbortSignal.timeout(2000) })).ok; } catch { return false; } }, 'Application debug endpoint did not start', stable ? 120000 : 15000);
+  } catch (error) {
+    if (stable) {
+      try { console.log(execFileSync('powershell.exe', ['-NoProfile', '-File', 'tests/capture-ci-desktop.ps1'], { encoding: 'utf8', env: { ...process.env, MOUZI_CAPTURE_DIR: run, MOUZI_CAPTURE_PID: String(child.pid) } })); } catch (captureError) { console.error(String(captureError)); }
+    }
+    throw error;
+  }
   browser = await chromium.connectOverCDP('http://127.0.0.1:19221');
   await until(async () => { page = browser.contexts().flatMap(c => c.pages()).find(p => p.url().includes('settings')); return !!page; }, 'Settings window missing');
   page.on('pageerror', error => report.errors.push(error.message));
