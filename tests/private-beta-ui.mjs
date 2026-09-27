@@ -1,19 +1,21 @@
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdir, writeFile, readFile, access, unlink } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { resolve, join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 const { chromium } = await import(process.env.MOUZI_PLAYWRIGHT_MODULE || 'playwright');
 const pl = JSON.parse(await readFile(new URL('../src/i18n/locales/pl.json', import.meta.url), 'utf8'));
 const version = process.env.MOUZI_TEST_VERSION || '0.2.0-beta.2';
 const stable = !version.includes('beta');
-if (stable && process.env.CI !== 'true') throw Error('Stable UI tests require an isolated CI runner. Do not use a personal stable profile.');
+if (stable && (process.env.CI !== 'true' || process.env.GITHUB_ACTIONS !== 'true')) throw Error('Stable UI tests require an isolated GitHub Actions runner. Do not use a personal stable profile.');
 const exe = resolve(process.env.MOUZI_TEST_EXE || 'artifacts/0.2.0-beta.2/Mouzi-0.2.0-beta.2-windows-x64.exe');
 const run = resolve(`artifacts/${version}/private-tests/${Date.now()}`);
 const fixture = join(run, 'pliki testowe — Łódź');
 await mkdir(fixture, { recursive: true });
 const report = { exe, sha256: createHash('sha256').update(await readFile(exe)).digest('hex'), started: new Date().toISOString(), cases: [], errors: [], cleanup: [] };
 let child, browser, page, originalSettings, folderId, originalLogs, originalRules, originalFolders;
+const ciPolicyKey = 'HKLM\\Software\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments';
+let ciPolicyInstalled = false;
 const ownedRules = new Set(), ownedFolders = new Set();
 const exists = path => access(path).then(() => true, () => false);
 const invoke = (cmd, args = {}) => page.evaluate(({ cmd, args }) => window.__TAURI_INTERNALS__.invoke(cmd, args), { cmd, args });
@@ -82,6 +84,11 @@ async function measureContrast(locator) {
   });
 }
 try {
+  if (stable) {
+    // Elevated CI runners require machine policy; WebView2 150+ ignores environment overrides.
+    execFileSync('reg.exe', ['add', ciPolicyKey, '/v', basename(exe), '/t', 'REG_SZ', '/d', '--remote-debugging-port=19221 --remote-debugging-address=127.0.0.1', '/f']);
+    ciPolicyInstalled = true;
+  }
   await start();
   originalSettings = await invoke('get_settings_cmd'); originalLogs = await invoke('get_logs_cmd', { limit: -1 });
   originalRules = await invoke('get_rules_cmd'); originalFolders = await invoke('get_folders_cmd');
@@ -231,6 +238,10 @@ finally {
     }
   }
   await stop().catch(error => report.cleanup.push(String(error)));
+  if (ciPolicyInstalled) {
+    try { execFileSync('reg.exe', ['delete', ciPolicyKey, '/v', basename(exe), '/f']); report.cleanup.push('Removed application-specific CI debugging policy'); }
+    catch (error) { report.cleanup.push(String(error)); process.exitCode = 1; }
+  }
   report.finished = new Date().toISOString(); await writeFile(join(run, 'report.json'), JSON.stringify(report, null, 2));
   console.log(`REPORT ${join(run, 'report.json')}`);
 }
