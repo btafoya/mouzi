@@ -247,18 +247,6 @@ Stable settings are preserved. Older History entries without verification record
 
 [Full release notes](https://github.com/hsr88/mouzi/releases/tag/v0.2.0) · [Documentation](https://mouzi.cc/docs)
 
-## Mouzi 0.1.6
-
-### Release highlights
-- Secure in-app update checks and one-click installation through the Tauri updater.
-- Extensionless files recognized by their content and routed through existing rules.
-- Selective batch organization for files waiting in Manual mode.
-- Folder picker, quick enable/disable switch and accessible labels for rules.
-- Per-rule extension normalization and custom notifications.
-- Destructive rule actions now use the Recycle Bin or Trash.
-- Confirmation before clearing history and clearer **Organize**/**Save** wording.
-- `.mouziignore` inline comments, improved locked-file handling and updated translations.
-
 ---
 
 ## 📋 Roadmap
