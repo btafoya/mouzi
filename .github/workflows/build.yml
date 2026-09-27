@@ -40,6 +40,12 @@ jobs:
       - name: Test the Windows release executable
         shell: pwsh
         run: |
+          $runtimeInstaller = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebView2RuntimeInstallerX64.exe'
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $runtimeInstaller
+          $signature = Get-AuthenticodeSignature -LiteralPath $runtimeInstaller
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft Corporation') { throw 'Invalid WebView2 installer signature' }
+          $runtimeInstall = Start-Process -FilePath $runtimeInstaller -ArgumentList '/silent','/install' -Wait -PassThru -WindowStyle Hidden
+          Write-Host "WebView2 setup exit: $($runtimeInstall.ExitCode)"
           npm install --no-save --package-lock=false playwright
           $env:MOUZI_TEST_EXE = 'src-tauri/target/release/mouzi.exe'
           $env:MOUZI_TEST_VERSION = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
@@ -53,6 +59,7 @@ jobs:
           path: artifacts/*/private-tests/
 
       - name: Collect Windows artifacts
+        if: always()
         shell: pwsh
         run: |
           $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
@@ -64,6 +71,7 @@ jobs:
           Get-ChildItem src-tauri/target/release/bundle/msi/*.sig -ErrorAction SilentlyContinue | Copy-Item -Destination release-windows/
 
       - name: Upload Windows artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-windows
