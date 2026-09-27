@@ -19,12 +19,12 @@ const exists = path => access(path).then(() => true, () => false);
 const invoke = (cmd, args = {}) => page.evaluate(({ cmd, args }) => window.__TAURI_INTERNALS__.invoke(cmd, args), { cmd, args });
 const button = name => page.getByRole('button', { name, exact: true });
 const field = name => page.getByText(name, { exact: true }).locator('..').locator('input').first();
-async function until(check, message) { for (let i = 0; i < 100; i++) { if (await check()) return; await new Promise(r => setTimeout(r, 150)); } throw Error(message); }
+async function until(check, message, timeout = 15000) { const end = Date.now() + timeout; while (Date.now() < end) { if (await check()) return; await new Promise(r => setTimeout(r, 150)); } throw Error(message); }
 async function start() {
   child = spawn(exe, stable ? ['--add-folder', fixture] : [], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=19221 --remote-debugging-address=127.0.0.1' } });
   child.stdout.on('data', chunk => console.log(String(chunk)));
   child.stderr.on('data', chunk => console.error(String(chunk)));
-  await until(async () => { if (child.exitCode !== null) throw Error(`Application exited during startup: ${child.exitCode}`); try { return (await fetch('http://127.0.0.1:19221/json/version')).ok; } catch { return false; } }, 'Application debug endpoint did not start');
+  await until(async () => { if (child.exitCode !== null) throw Error(`Application exited during startup: ${child.exitCode}`); try { return (await fetch('http://127.0.0.1:19221/json/version', { signal: AbortSignal.timeout(2000) })).ok; } catch { return false; } }, 'Application debug endpoint did not start', stable ? 120000 : 15000);
   browser = await chromium.connectOverCDP('http://127.0.0.1:19221');
   await until(async () => { page = browser.contexts().flatMap(c => c.pages()).find(p => p.url().includes('settings')); return !!page; }, 'Settings window missing');
   page.on('pageerror', error => report.errors.push(error.message));

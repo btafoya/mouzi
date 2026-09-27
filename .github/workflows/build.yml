@@ -2,12 +2,18 @@ name: Build and release
 
 on:
   workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: Re-test existing Windows artifacts without rebuilding
+        required: false
+        type: string
   push:
     tags:
       - "v*"
 
 jobs:
   windows:
+    if: ${{ !inputs.artifact_run_id }}
     name: Build Windows (unsigned Authenticode)
     runs-on: windows-latest
     env:
@@ -79,6 +85,7 @@ jobs:
           if-no-files-found: error
 
   linux:
+    if: ${{ !inputs.artifact_run_id }}
     name: Build and validate Linux
     runs-on: ubuntu-22.04
     env:
@@ -177,6 +184,44 @@ jobs:
           name: release-linux
           path: release-linux/*
           if-no-files-found: error
+
+  windows-smoke:
+    if: ${{ inputs.artifact_run_id != '' && github.event_name == 'workflow_dispatch' }}
+    runs-on: windows-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-windows
+          path: release-windows
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare WebView2 and run UI tests
+        shell: pwsh
+        run: |
+          $runtimeInstaller = Join-Path $env:RUNNER_TEMP 'WebView2.exe'
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $runtimeInstaller
+          $signature = Get-AuthenticodeSignature -LiteralPath $runtimeInstaller
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft Corporation') { throw 'Invalid WebView2 installer signature' }
+          Start-Process -FilePath $runtimeInstaller -ArgumentList '/silent','/install' -Wait -WindowStyle Hidden
+          $runtimePath = Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application" -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'msedgewebview2.exe') } | Sort-Object Name -Descending | Select-Object -First 1
+          if ($runtimePath) { $env:WEBVIEW2_BROWSER_EXECUTABLE_FOLDER = $runtimePath.FullName; Write-Host "WebView2: $($runtimePath.FullName)" }
+          npm install --no-save --package-lock=false playwright
+          $env:MOUZI_TEST_EXE = (Get-ChildItem release-windows/*portable.exe).FullName
+          $env:MOUZI_TEST_VERSION = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          node tests/private-beta-ui.mjs
+      - name: Upload UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-retest-evidence
+          path: artifacts/*/private-tests/
 
   publish:
     name: Publish release
