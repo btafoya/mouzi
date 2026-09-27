@@ -1,0 +1,63 @@
+---
+title: "Mouzi 0.2.0: see where your files will go before moving them"
+description: Review file destinations before approving a batch, leave existing files alone, and combine size and date conditions in your rules. Mouzi 0.2.0 is available for Windows and Linux.
+pubDate: 2026-09-27
+tags: [releases, rules, updates]
+related: [practical-downloads-folder-rules, why-mouzi-processes-everything-locally]
+cover: /images/mouzi-0.2.0-release.png
+coverAlt: "An origami mouse sorts papers into orange folders beside the words Mouzi 0.2.0: Preview. Approve. Organize."
+---
+
+Mouzi 0.2.0 is out for Windows and Linux. The biggest addition is an organization preview: you can check which rule matches each file and where it will go, then approve the operations you want.
+
+Automatic sorting is useful once you trust your rules. When you're trying a new rule on a folder full of files, seeing the result first helps. That is the part of this release I would start with.
+
+## Check the destination before committing
+
+The preview shows the source file, matched rule and proposed destination. You can leave individual entries unchecked and review the selected operations before applying them. Opening the preview changes nothing on disk.
+
+Suppose you've added a rule for PDF invoices. Before letting it loose on Downloads, you can check whether it also catches a manual or a bank statement you wanted to leave alone. If a file or rule changes after the preview, Mouzi rejects the stale operation and asks you to refresh it.
+
+The new Suggest mode keeps files in a review queue until you approve them. Scheduled organization respects that choice too. Silent mode is still available for folders you want Mouzi to handle automatically.
+
+The [preview guide](/docs/organization-preview) explains the review flow and what happens when an operation cannot proceed.
+
+## Keep the old pile, sort the new arrivals
+
+You may want to start organizing a folder without rearranging everything already in it. Enable "Process only new files" for that folder and Mouzi records the filenames present at that point. It skips those names while the option remains enabled.
+
+That baseline survives a restart. Turning the option off makes the existing backlog eligible again; enabling it again records a fresh baseline. Because the baseline tracks filenames, a replacement file with an old name is skipped too. The [folder settings guide](/docs/folders-and-modes) covers the details.
+
+## Rules can combine size, dates and filenames
+
+Extension and filename matching now work alongside minimum and maximum file sizes and modification-date conditions. Every condition you set must match.
+
+For example, a rule can select ZIP archives above a chosen size whose names match a backup pattern. You can narrow it further with a modification-date range. Rule dates use UTC, so check that range when working near midnight in your local time zone.
+
+You can now rename files without moving them. A template such as `sorted-{stem}.{extension}` changes the name while keeping the file in its current folder. Mouzi checks for collisions, and the new history records support undo. Available template fields are listed in the [rules documentation](/docs/rules).
+
+## Undo the batch you just organized
+
+History now groups operations into runs. You can filter by filename, rule, extension or local date range, then review an undo for selected files or a whole run.
+
+Undo checks the files before restoring them. If you've edited a file since Mouzi moved it, or another file now occupies its original path, Mouzi skips that entry and explains why. Other eligible entries can still be restored.
+
+Older history entries remain visible after upgrading, but entries without verification data cannot use the new safe undo. You will need to restore those files manually. Files sent to the Recycle Bin or Trash are restored through the operating system.
+
+## A few smaller changes
+
+Windows users can enable "Add to Mouzi" in the folder context menu. It opens the add-folder form for confirmation. On Windows 11, the entry is under "Show more options".
+
+Names such as `invoice.pdf.exe` now receive a warning and start unchecked in the preview. This checks for misleading filenames; it is not an antivirus scan or a verdict about a file's contents.
+
+Simplified Chinese is available in the language selector. The new 0.2.0 controls have English and Polish translations, with English fallback in the other languages. This release also fixes empty entries in extension lists and improves warning contrast when Mouzi's theme differs from the system theme.
+
+## Updating to 0.2.0
+
+If your installed version includes the updater, open About and check for updates. You can also get the packages from the [Windows](/download/windows) or [Linux](/download/linux) download page. Stable settings, rules and watched folders carry over; private beta profiles remain separate.
+
+Windows packages are still unsigned with Authenticode. Update packages have separate cryptographic signatures, and the [GitHub release](https://github.com/hsr88/mouzi/releases/tag/v0.2.0) includes download checksums. The official release covers Windows and Linux; macOS builds remain experimental.
+
+Mouzi remains free and open source. File organization runs on your computer without an account or cloud processing.
+
+Thanks to everyone who tested builds, reported bugs and contributed fixes or translations. If a preview sends a file somewhere unexpected, please [open an issue](https://github.com/hsr88/mouzi/issues) with your operating system, rule settings and a sample filename with personal details removed. That gives us something concrete to reproduce.
