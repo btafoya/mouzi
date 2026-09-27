@@ -84,6 +84,8 @@ A pull request may be changed or declined if it adds unnecessary complexity, bre
 
 Mouzi keeps its interface translations in JSON files under [`src/i18n/locales`](src/i18n/locales). You can improve an existing translation or add a new language without changing the file-organizing logic.
 
+The `beta` section in each JSON file contains the organization preview, history filters and rule conditions introduced in 0.2.0. The internal key name is retained for compatibility; these are stable features and need translating too. Run `npm test` to check all UI keys and preserve both interpolation values such as `{{count}}` and filename-template fields such as `{stem}` exactly. CI runs the same checks on translation changes and release builds.
+
 ### Improve an existing translation
 
 1. Fork the repository and create a branch for your translation.

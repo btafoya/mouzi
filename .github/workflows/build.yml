@@ -41,7 +41,7 @@ jobs:
       - name: Test Rust and rule helpers
         run: |
           cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
-          node --test tests/rules.test.mjs
+          npm test
 
       - name: Test the Windows release executable
         shell: pwsh
@@ -117,6 +117,9 @@ jobs:
 
       - name: Test Rust on Linux
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Test translations and rule helpers
+        run: npm test
 
       - name: Repair and re-sign AppImage
         shell: bash

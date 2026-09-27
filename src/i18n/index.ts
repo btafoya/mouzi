@@ -11,11 +11,10 @@ import vi from './locales/vi.json';
 import es from './locales/es.json';
 import uk from './locales/uk.json';
 import zhCN from './locales/zh-CN.json';
-import { betaEn, betaPl } from './beta';
 
 const resources = {
-  en: { translation: { ...en, beta: betaEn } },
-  pl: { translation: { ...pl, beta: betaPl } },
+  en: { translation: en },
+  pl: { translation: pl },
   it: { translation: it },
   de: { translation: de },
   fr: { translation: fr },
