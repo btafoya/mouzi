@@ -1,4 +1,6 @@
-use crate::db::{get_rules, get_settings, log_action, ActionLog, Rule};
+use crate::db::{
+    get_rules, get_settings, get_watched_folders, is_folder_auto_mode, log_action, ActionLog, Rule,
+};
 use crate::ignore::{is_ignored, load_mouziignore};
 use chrono::Utc;
 use regex::Regex;
@@ -6,10 +8,68 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+pub fn validate_rule(rule: &Rule) -> Result<(), String> {
+    if rule.name.trim().is_empty() {
+        return Err("validation.name".into());
+    }
+    let extensions = crate::db::normalize_extensions(&rule.extensions);
+    if extensions.is_empty()
+        || extensions.iter().any(|ext| {
+            ext != "*"
+                && !ext
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        })
+    {
+        return Err("validation.extensions".into());
+    }
+    if let Some(pattern) = &rule.pattern {
+        Regex::new(pattern).map_err(|_| "validation.pattern")?;
+    }
+    if !["move", "rename", "delete", "ignore"].contains(&rule.action.as_str()) {
+        return Err("validation.action".into());
+    }
+    if rule.action == "move"
+        && (rule.destination.trim().is_empty()
+            || Path::new(&rule.destination)
+                .components()
+                .any(|p| matches!(p, std::path::Component::ParentDir)))
+    {
+        return Err("validation.destination".into());
+    }
+    if rule
+        .options
+        .min_size
+        .zip(rule.options.max_size)
+        .is_some_and(|(a, b)| a > b)
+    {
+        return Err("validation.size".into());
+    }
+    for date in [&rule.options.modified_after, &rule.options.modified_before]
+        .into_iter()
+        .flatten()
+    {
+        chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| "validation.date")?;
+    }
+    if rule
+        .options
+        .modified_after
+        .as_ref()
+        .zip(rule.options.modified_before.as_ref())
+        .is_some_and(|(a, b)| a > b)
+    {
+        return Err("validation.date".into());
+    }
+    if rule.action == "rename" {
+        crate::operations::validate_template(&rule.options.rename_template)?;
+    }
+    Ok(())
+}
+
 /// Check if a file is currently locked by another process.
 /// On Windows this tries to open with write access; if another process holds
 /// the file without FILE_SHARE_WRITE the open will fail.
-fn is_file_locked(path: &Path) -> bool {
+pub(crate) fn is_file_locked(path: &Path) -> bool {
     match fs::OpenOptions::new().write(true).open(path) {
         Ok(_) => false,
         Err(_) => true,
@@ -130,6 +190,9 @@ pub fn is_file_ignored_by_mouziignore(path: &Path) -> bool {
 }
 
 pub fn scan_file(path: &Path) -> Option<FileInfo> {
+    if !fs::symlink_metadata(path).ok()?.file_type().is_file() {
+        return None;
+    }
     if should_ignore_file(path) {
         return None;
     }
@@ -153,13 +216,42 @@ pub fn scan_file(path: &Path) -> Option<FileInfo> {
     })
 }
 
-fn matches_rule(file: &FileInfo, rule: &Rule) -> bool {
+pub(crate) fn matches_rule(file: &FileInfo, rule: &Rule) -> bool {
     if !rule.enabled {
         return false;
     }
 
-    let ext_matches =
-        rule.extensions.contains(&"*".to_string()) || rule.extensions.contains(&file.extension);
+    let extensions = crate::db::normalize_extensions(&rule.extensions);
+    let ext_matches = extensions
+        .iter()
+        .any(|ext| ext == "*" || (!file.extension.is_empty() && ext == &file.extension));
+    if rule.options.min_size.is_some_and(|min| file.size < min)
+        || rule.options.max_size.is_some_and(|max| file.size > max)
+    {
+        return false;
+    }
+    if rule.options.modified_after.is_some() || rule.options.modified_before.is_some() {
+        let Some(day) = fs::metadata(&file.path)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .map(|time| chrono::DateTime::<Utc>::from(time).date_naive())
+        else {
+            return false;
+        };
+        for (value, after) in [
+            (&rule.options.modified_after, true),
+            (&rule.options.modified_before, false),
+        ] {
+            if let Some(value) = value {
+                let Ok(bound) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") else {
+                    return false;
+                };
+                if (after && day < bound) || (!after && day > bound) {
+                    return false;
+                }
+            }
+        }
+    }
 
     let pattern_matches = if let Some(ref pattern) = rule.pattern {
         if pattern.is_empty() {
@@ -176,7 +268,7 @@ fn matches_rule(file: &FileInfo, rule: &Rule) -> bool {
     ext_matches && pattern_matches
 }
 
-fn resolve_destination(destination: &str, file: &FileInfo) -> PathBuf {
+pub(crate) fn resolve_destination(destination: &str, file: &FileInfo) -> PathBuf {
     let now = Utc::now();
     let resolved = destination
         .replace("{year}", &now.format("%Y").to_string())
@@ -212,7 +304,7 @@ fn normalized_extension(rule: &Rule, extension: &str) -> Option<String> {
         .find_map(|(from, to)| (from == extension).then_some(to))
 }
 
-fn output_file_info(file: &FileInfo, rule: &Rule) -> FileInfo {
+pub(crate) fn output_file_info(file: &FileInfo, rule: &Rule) -> FileInfo {
     let Some(extension) = normalized_extension(rule, &file.extension) else {
         return file.clone();
     };
@@ -232,76 +324,64 @@ fn output_file_info(file: &FileInfo, rule: &Rule) -> FileInfo {
     }
 }
 
-fn collision_file_name(path: &Path, extension: &str) -> String {
-    let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-    if extension.is_empty() {
-        format!("{}_{}", stem, Utc::now().timestamp())
-    } else {
-        format!("{}_{}.{}", stem, Utc::now().timestamp(), extension)
-    }
-}
-
 pub fn find_matching_rule(file: &FileInfo) -> Option<Rule> {
     let rules = get_rules().ok()?;
-    rules.into_iter().find(|rule| matches_rule(file, rule))
-}
-
-fn move_file_cross_device(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
-    // Try a fast atomic rename first (same filesystem).
-    match fs::rename(src, dst) {
-        Ok(()) => Ok(()),
-        Err(_) => {
-            // Fallback: copy and remove for cross-device / cross-drive moves.
-            fs::copy(src, dst)?;
-            fs::remove_file(src)?;
-            Ok(())
-        }
-    }
+    let folders = get_watched_folders().ok()?;
+    rules.into_iter().find(|rule| {
+        (rule.folder_id == 0
+            || folders.iter().any(|folder| {
+                folder.id == Some(rule.folder_id)
+                    && file.path.parent().is_some_and(|parent| {
+                        fs::canonicalize(parent).ok() == fs::canonicalize(&folder.path).ok()
+                    })
+            }))
+            && matches_rule(file, rule)
+    })
 }
 
 pub fn execute_rule(file_info: &FileInfo, rule: &Rule) -> Result<Option<String>, String> {
-    let output = output_file_info(file_info, rule);
-    let base_folder = file_info
-        .path
-        .parent()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| ".".to_string());
-
-    let dest = if Path::new(&rule.destination).is_absolute() {
-        // Backwards compatibility: old rules with absolute paths
-        resolve_destination(&rule.destination, &output)
-    } else {
-        // New behavior: relative to the source folder
-        PathBuf::from(&base_folder).join(resolve_destination(&rule.destination, &output))
-    };
-
-    match rule.action.as_str() {
-        "move" => {
-            fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
-            let new_path = dest.join(&output.name);
-            if new_path.exists() {
-                let new_name = collision_file_name(Path::new(&output.name), &output.extension);
-                let new_path = dest.join(&new_name);
-                move_file_cross_device(&file_info.path, &new_path).map_err(|e| e.to_string())?;
-                Ok(Some(new_path.to_string_lossy().to_string()))
-            } else {
-                move_file_cross_device(&file_info.path, &new_path).map_err(|e| e.to_string())?;
-                Ok(Some(new_path.to_string_lossy().to_string()))
-            }
-        }
-        "delete" => {
-            trash::delete(&file_info.path).map_err(|e| e.to_string())?;
-            Ok(None)
-        }
-        "ignore" => Ok(None),
-        _ => Err(format!("Unknown action: {}", rule.action)),
-    }
+    let dest =
+        crate::operations::destination_for(file_info, rule, &mut std::collections::HashSet::new())?;
+    crate::operations::execute_destination(&file_info.path, rule, dest.as_deref())?;
+    Ok(dest.map(|p| p.to_string_lossy().to_string()))
 }
 
 pub fn process_file(
     path: &Path,
     bypass_grace: bool,
 ) -> Result<Option<(Rule, Option<String>)>, String> {
+    process_file_in_run(
+        path,
+        bypass_grace,
+        &crate::operations::new_run_id(),
+        "manual",
+    )
+}
+
+pub fn process_file_in_run(
+    path: &Path,
+    bypass_grace: bool,
+    run_id: &str,
+    trigger: &str,
+) -> Result<Option<(Rule, Option<String>)>, String> {
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
+    if ["automatic", "scheduled"].contains(&trigger)
+        && !get_watched_folders()
+            .map_err(|e| e.to_string())?
+            .iter()
+            .any(|folder| {
+                folder.enabled
+                    && is_folder_auto_mode(&folder.mode)
+                    && path.parent().is_some_and(|parent| {
+                        fs::canonicalize(parent).ok() == fs::canonicalize(&folder.path).ok()
+                    })
+            })
+    {
+        return Ok(None);
+    }
+    if crate::db::is_baseline_file(path) {
+        return Ok(None);
+    }
     let (grace_period, lock_check) = get_settings()
         .map(|s| (s.grace_period_seconds, s.lock_check_enabled))
         .unwrap_or((300, true));
@@ -319,12 +399,19 @@ pub fn process_file(
     }
 
     let file_info = scan_file(path).ok_or("Cannot read file metadata")?;
+    if crate::operations::already_processed(path)? {
+        return Ok(None);
+    }
     let rule = find_matching_rule(&file_info).ok_or("No matching rule")?;
 
     if rule.action == "ignore" {
         return Ok(None);
     }
 
+    if crate::operations::suspicious_name(path) {
+        return Ok(None);
+    }
+    let fingerprint = crate::operations::fingerprint(path)?;
     let dest = execute_rule(&file_info, &rule)?;
 
     let log = ActionLog {
@@ -336,13 +423,27 @@ pub fn process_file(
         file_name: file_info.name.clone(),
         file_type: rule.name.clone(),
         undone: false,
+        run_id: Some(run_id.into()),
+        trigger: trigger.into(),
+        file_extension: file_info.extension.clone(),
+        file_size: file_info.size,
+        fingerprint: Some(fingerprint),
     };
-    let _ = log_action(&log);
+    log_action(&log)
+        .map_err(|e| format!("Operation completed but history could not be saved: {e}"))?;
 
     Ok(Some((rule, dest)))
 }
 
 pub fn manual_scan_folder(folder: &str) -> Result<Vec<(String, String, String)>, String> {
+    scan_folder_in_run(folder, &crate::operations::new_run_id(), "manual")
+}
+
+pub fn scan_folder_in_run(
+    folder: &str,
+    run_id: &str,
+    trigger: &str,
+) -> Result<Vec<(String, String, String)>, String> {
     let mut results = Vec::new();
     let entries = fs::read_dir(folder).map_err(|e| e.to_string())?;
 
@@ -368,7 +469,7 @@ pub fn manual_scan_folder(folder: &str) -> Result<Vec<(String, String, String)>,
             eprintln!("[manual_scan] ignoring due to .mouziignore: {}", file_name);
             continue;
         }
-        match process_file(&path, true) {
+        match process_file_in_run(&path, true, run_id, trigger) {
             Ok(Some((rule, dest))) => {
                 let destination = dest.unwrap_or_default();
                 eprintln!(
@@ -411,7 +512,7 @@ mod tests {
             fs::remove_file(&dst).unwrap();
         }
 
-        move_file_cross_device(&src, &dst).unwrap();
+        crate::operations::move_without_overwrite(&src, &dst).unwrap();
 
         assert!(
             dst.exists(),
@@ -426,5 +527,48 @@ mod tests {
         let _ = fs::remove_file(&dst);
         let _ = fs::remove_file(&src);
         let _ = fs::remove_dir_all(&test_root);
+    }
+
+    #[test]
+    fn detects_extensionless_png_from_magic_bytes() {
+        let test_root =
+            std::env::temp_dir().join(format!("mouzi-magic-test-{}", std::process::id()));
+        fs::create_dir_all(&test_root).unwrap();
+        let path = test_root.join("downloaded-file");
+        fs::write(&path, [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]).unwrap();
+
+        let info = scan_file(&path).expect("extensionless PNG should be readable");
+        assert_eq!(info.extension, "png");
+
+        let _ = fs::remove_dir_all(test_root);
+    }
+
+    #[test]
+    fn normalizes_existing_extension_only() {
+        let file = FileInfo {
+            path: PathBuf::from("photo.jpeg"),
+            name: "photo.jpeg".to_string(),
+            extension: "jpeg".to_string(),
+            size: 1,
+        };
+        let rule = Rule {
+            id: None,
+            name: "Images".to_string(),
+            priority: 1,
+            enabled: true,
+            extensions: vec!["jpeg".to_string()],
+            pattern: None,
+            destination: "Images".to_string(),
+            action: "move".to_string(),
+            folder_id: 0,
+            notification_message: None,
+            normalize_extensions: true,
+            extension_mappings: "jpeg:jpg".to_string(),
+            options: Default::default(),
+        };
+
+        let output = output_file_info(&file, &rule);
+        assert_eq!(output.name, "photo.jpg");
+        assert_eq!(output.extension, "jpg");
     }
 }

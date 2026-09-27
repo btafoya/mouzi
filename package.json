@@ -1,11 +1,12 @@
 {
   "name": "mouzi",
   "private": true,
-  "version": "0.1.6",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "node --test tests/*.test.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },

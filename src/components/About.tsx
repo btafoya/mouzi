@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Download, ExternalLink, Heart } from "lucide-react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { PRIVATE_BETA } from "../build";
 
 interface VersionInfo {
   version: string;
@@ -25,6 +26,7 @@ export default function About() {
   }, []);
 
   const handleUpdate = async () => {
+    if (PRIVATE_BETA) return;
     try {
       if (availableUpdate) {
         setUpdateStatus("installing");
@@ -80,9 +82,10 @@ export default function About() {
       )}
 
       {/* Check for Updates */}
+      {PRIVATE_BETA && <p className="text-xs">{t("beta.updaterDisabled")}</p>}
       <button
         onClick={handleUpdate}
-        disabled={updateStatus === "checking" || updateStatus === "installing"}
+        disabled={PRIVATE_BETA || updateStatus === "checking" || updateStatus === "installing"}
         className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text hover:bg-border transition-colors"
       >
         <Download size={16} className="text-primary" />

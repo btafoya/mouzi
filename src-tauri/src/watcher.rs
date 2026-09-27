@@ -1,5 +1,5 @@
 use crate::db::{get_watched_folders, is_folder_manual_mode, is_folder_paused_mode};
-use crate::rules::{is_file_ignored_by_mouziignore, process_file, should_ignore_file};
+use crate::rules::{is_file_ignored_by_mouziignore, process_file_in_run, should_ignore_file};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -84,6 +84,7 @@ impl FolderWatcher {
                 let mut last_dest_folder = String::new();
                 let mut last_notification_message: Option<String> = None;
 
+                let run_id = crate::operations::new_run_id();
                 for path in to_process {
                     if path.exists() && path.is_file() {
                         // Defensive check: if the folder has been switched to manual or paused
@@ -102,14 +103,18 @@ impl FolderWatcher {
                                     || is_folder_paused_mode(&f.mode)
                                     || is_folder_manual_mode(&f.mode)
                             })
-                            .unwrap_or(false);
+                            .unwrap_or(true);
                         if should_skip {
                             continue;
                         }
                         // Files in the pending queue have already waited for the grace period,
                         // so we bypass the grace check here to avoid files being skipped forever
                         // if their modification time changes while queued.
-                        match process_file(&path, true) {
+                        if crate::operations::suspicious_name(&path) {
+                            let _ = handle.emit("file-warning", path.to_string_lossy().to_string());
+                            continue;
+                        }
+                        match process_file_in_run(&path, true, &run_id, "automatic") {
                             Ok(Some((rule, dest))) => {
                                 let file_name = path
                                     .file_name()
@@ -189,7 +194,13 @@ impl FolderWatcher {
                             .clone()
                             .unwrap_or_else(|| format!("{} → {}", last_file_name, last_rule_name))
                     } else {
-                        format!("Organized {} files", organized_count)
+                        crate::i18n::TrayI18n::new(
+                            &crate::db::get_settings()
+                                .map(|s| s.language)
+                                .unwrap_or_else(|_| "en".into()),
+                        )
+                        .get("organized")
+                        .replace("{}", &organized_count.to_string())
                     };
 
                     #[cfg(target_os = "windows")]
@@ -197,13 +208,13 @@ impl FolderWatcher {
                         let dest_folder_clone = last_dest_folder.clone();
                         let body_clone = body.clone();
                         let _ = std::thread::spawn(move || {
-                            let _ = tauri_winrt_notification::Toast::new("cc.mouzi.app")
+                            let _ = tauri_winrt_notification::Toast::new("cc.mouzi.beta")
                                 .title("Mouzi – click to open folder")
                                 .text1(&body_clone)
                                 .on_activated(move |_action| {
                                     // Open the folder in Explorer robustly
-                                    let _ = std::process::Command::new("cmd")
-                                        .args(["/c", "start", "", &dest_folder_clone])
+                                    let _ = std::process::Command::new("explorer.exe")
+                                        .arg(&dest_folder_clone)
                                         .spawn();
                                     Ok(())
                                 })
@@ -264,6 +275,7 @@ impl FolderWatcher {
                     if path.is_file()
                         && !should_ignore_file(&path)
                         && !is_file_ignored_by_mouziignore(&path)
+                        && !crate::db::is_baseline_file(&path)
                     {
                         let path_str = path.to_string_lossy().to_string();
                         let mut ignore_guard = ig.lock().unwrap();
@@ -277,7 +289,7 @@ impl FolderWatcher {
                         }
                         drop(ignore_guard);
 
-                        if is_manual {
+                        if is_manual || crate::operations::suspicious_name(&path) {
                             let file_name = path
                                 .file_name()
                                 .unwrap_or_default()
@@ -318,10 +330,20 @@ impl FolderWatcher {
             let mut watcher = RecommendedWatcher::new(
                 move |res: Result<Event, notify::Error>| {
                     if let Ok(event) = res {
+                        if !matches!(
+                            event.kind,
+                            notify::EventKind::Create(_)
+                                | notify::EventKind::Modify(_)
+                                | notify::EventKind::Remove(_)
+                        ) {
+                            return;
+                        }
                         for path in event.paths {
+                            crate::db::forget_removed_baseline(&path);
                             if path.is_file()
                                 && !should_ignore_file(&path)
                                 && !is_file_ignored_by_mouziignore(&path)
+                                && !crate::db::is_baseline_file(&path)
                             {
                                 let path_str = path.to_string_lossy().to_string();
                                 let mut ignore_guard = ig.lock().unwrap();
@@ -335,7 +357,7 @@ impl FolderWatcher {
                                 }
                                 drop(ignore_guard);
 
-                                if is_manual {
+                                if is_manual || crate::operations::suspicious_name(&path) {
                                     // Manual mode: collect for later, do not auto-organize.
                                     let file_name = path
                                         .file_name()
@@ -394,6 +416,8 @@ impl FolderWatcher {
 
     pub fn refresh(&mut self, app_handle: tauri::AppHandle) -> Result<(), String> {
         self.watchers.clear();
+        self.pending.lock().unwrap().clear();
+        self.pending_manual.lock().unwrap().clear();
         self.watch_folders(app_handle)
     }
 
@@ -412,7 +436,10 @@ impl FolderWatcher {
     /// been organized. Non-existent files are pruned automatically.
     pub fn get_pending_files(&self) -> Vec<(String, String)> {
         let mut manual = self.pending_manual.lock().unwrap();
-        manual.retain(|p| Path::new(p).exists());
+        manual.retain(|p| {
+            let path = Path::new(p);
+            path.exists() && !crate::operations::already_processed(path).unwrap_or(false)
+        });
         let result: Vec<(String, String)> = manual
             .iter()
             .filter_map(|path| {

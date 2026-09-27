@@ -20,6 +20,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { PRIVATE_BETA } from "../build";
 
 function getIconForType(typeName: string) {
   const lower = typeName.toLowerCase();
@@ -48,16 +49,14 @@ export default function Popup() {
     loadLogs,
     loadStats,
     loadFolders,
-    scanFolder,
     undoAction,
     folders,
     pendingFiles,
     getPendingFiles,
-    scanSelectedFiles,
     settings,
     loadSettings,
   } = useAppStore();
-  const [scanResults, setScanResults] = useState<
+  const [scanResults] = useState<
     { file: string; rule: string; destination: string }[]
   >([]);
   const [toast, setToast] = useState<{
@@ -115,7 +114,7 @@ export default function Popup() {
   }, [loadLogs, loadStats, loadFolders, loadSettings, getPendingFiles]);
 
   useEffect(() => {
-    if (!settings?.auto_update_enabled) return;
+    if (!settings?.auto_update_enabled || PRIVATE_BETA) return;
     check()
       .then((update) => setAvailableUpdate(update))
       .catch((error) => console.error("[updater] automatic check failed:", error));
@@ -133,21 +132,8 @@ export default function Popup() {
 
 
   const handleClean = async () => {
-    let allResults: { file: string; rule: string; destination: string }[] = [];
-    const activeFolders = folders.filter((f) => f.mode !== "paused");
-    const targets = activeFolders.length > 0 ? activeFolders.map((f) => f.path) : [await invoke<string>("get_downloads_folder")];
-    for (const path of targets) {
-      const results = await scanFolder(path);
-      allResults = allResults.concat(results);
-    }
-    setScanResults(allResults);
-    await getPendingFiles();
-    if (allResults.length > 0) {
-      await invoke("show_notification", {
-        title: t("app.name"),
-        body: t("notifications.cleaned", { count: allResults.length }),
-      });
-    }
+    await invoke("show_review_cmd", { paths: [] });
+    await invoke("close_popup");
   };
 
   const handleOpenDownloads = async () => {
@@ -157,8 +143,8 @@ export default function Popup() {
 
   const handleSelected = async () => {
     if (selectedFiles.size === 0) return;
-    const results = await scanSelectedFiles([...selectedFiles]);
-    setScanResults(results);
+    await invoke("show_review_cmd", { paths: [...selectedFiles] });
+    await invoke("close_popup");
     setSelectedFiles(new Set());
   };
 

@@ -1,5 +1,5 @@
 use crate::db::{get_settings, get_watched_folders, is_folder_manual_mode, is_folder_paused_mode};
-use crate::rules::manual_scan_folder;
+use crate::rules::scan_folder_in_run;
 use chrono::{Duration, Local, NaiveDate, NaiveTime};
 use serde_json::json;
 use std::collections::HashMap;
@@ -94,6 +94,7 @@ fn perform_scheduled_clean(app_handle: &AppHandle) -> Result<(), String> {
 
     let folders = get_watched_folders().map_err(|e| e.to_string())?;
     let mut total = 0usize;
+    let run_id = crate::operations::new_run_id();
     for folder in folders {
         if !folder.enabled
             || is_folder_paused_mode(&folder.mode)
@@ -104,7 +105,7 @@ fn perform_scheduled_clean(app_handle: &AppHandle) -> Result<(), String> {
         if !std::path::Path::new(&folder.path).exists() {
             continue;
         }
-        match manual_scan_folder(&folder.path) {
+        match scan_folder_in_run(&folder.path, &run_id, "scheduled") {
             Ok(results) => total += results.len(),
             Err(e) => eprintln!("[scheduler] failed to clean {}: {}", folder.path, e),
         }

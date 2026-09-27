@@ -1,8 +1,12 @@
 pub mod archive;
+#[cfg(test)]
+mod beta_tests;
 pub mod commands;
 pub mod db;
 pub mod i18n;
 pub mod ignore;
+pub mod integration;
+pub mod operations;
 pub mod rules;
 pub mod scheduler;
 pub mod tray;
@@ -14,11 +18,11 @@ use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+#[cfg(target_os = "macos")]
+use tauri::ActivationPolicy;
 use tauri::Manager;
 use tauri_plugin_autostart::ManagerExt;
 use watcher::FolderWatcher;
-#[cfg(target_os = "macos")]
-use tauri::ActivationPolicy;
 
 pub struct AppState {
     pub watcher: Arc<Mutex<FolderWatcher>>,
@@ -26,6 +30,8 @@ pub struct AppState {
     /// Last destination folder waiting to be opened when app is activated by notification click
     pub pending_open_folder: Arc<Mutex<Option<String>>>,
     pub scheduler: scheduler::Scheduler,
+    pub review_request: Mutex<Option<Vec<String>>>,
+    pub add_folder_request: Mutex<Option<String>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -42,7 +48,10 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--autostart"]),
         ))
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if integration::handle_folder_args(app, &args) {
+                return;
+            }
             // When Windows activates the app (e.g. user clicked a notification),
             // open any pending folder first, then show the popup.
             if let Some(state) = app.try_state::<AppState>() {
@@ -51,21 +60,17 @@ pub fn run() {
                     // Open the destination folder in Explorer robustly
                     #[cfg(target_os = "windows")]
                     {
-                        let _ = std::process::Command::new("cmd")
-                            .args(["/c", "start", "", &path])
+                        let _ = std::process::Command::new("explorer.exe")
+                            .arg(&path)
                             .spawn();
                     }
                     #[cfg(target_os = "macos")]
                     {
-                        let _ = std::process::Command::new("open")
-                            .arg(&path)
-                            .spawn();
+                        let _ = std::process::Command::new("open").arg(&path).spawn();
                     }
                     #[cfg(target_os = "linux")]
                     {
-                        let _ = std::process::Command::new("xdg-open")
-                            .arg(&path)
-                            .spawn();
+                        let _ = std::process::Command::new("xdg-open").arg(&path).spawn();
                     }
                 }
             }
@@ -86,6 +91,8 @@ pub fn run() {
             ignored_files,
             pending_open_folder,
             scheduler: scheduler::Scheduler::new(),
+            review_request: Mutex::new(None),
+            add_folder_request: Mutex::new(None),
         })
         .setup(|app| {
             // Hid app from dock on macOS
@@ -95,7 +102,10 @@ pub fn run() {
             let app_handle = app.handle().clone();
 
             // Initialize database
-            if let Some(proj_dirs) = ProjectDirs::from("cc", "mouzi", "mouzi") {
+            let beta = env!("CARGO_PKG_VERSION").contains("beta");
+            if let Some(proj_dirs) =
+                ProjectDirs::from("cc", "mouzi", if beta { "mouzi-beta" } else { "mouzi" })
+            {
                 let data_dir = proj_dirs.data_dir().to_path_buf();
                 std::fs::create_dir_all(&data_dir).ok();
                 init_db(data_dir.clone()).expect("Failed to initialize database");
@@ -106,7 +116,9 @@ pub fn run() {
                 let first = settings.first_run;
                 if first {
                     let downloads = commands::get_downloads_folder();
-                    let _ = db::add_watched_folder(&downloads, FOLDER_MODE_SILENT);
+                    if !beta {
+                        let _ = db::add_watched_folder(&downloads, FOLDER_MODE_SILENT);
+                    }
                     let _ = db::insert_default_rules(&downloads);
                     let mut new_settings = settings;
                     new_settings.first_run = false;
@@ -123,10 +135,11 @@ pub fn run() {
                 .unwrap_or_else(|_| "en".to_string());
             tray::setup_tray(&app_handle, &tray_lang)?;
 
-            // On first launch, show the popup so the user knows the app is running
-            if is_first_run {
-                tray::show_popup_window(&app_handle);
+            // Test builds open Settings on normal launches; autostart stays quiet.
+            if (is_first_run || beta) && !std::env::args().any(|arg| arg == "--autostart") {
+                tray::show_settings_window(&app_handle);
             }
+            integration::handle_folder_args(&app_handle, &std::env::args().collect::<Vec<_>>());
 
             // Sync autostart with user settings
             if let Ok(settings) = db::get_settings() {
@@ -191,6 +204,17 @@ pub fn run() {
             get_version_cmd,
             export_rules_cmd,
             import_rules_cmd,
+            preview_cmd,
+            apply_preview_cmd,
+            discard_preview_cmd,
+            history_cmd,
+            undo_selected_cmd,
+            set_only_new_cmd,
+            show_review_cmd,
+            take_review_request_cmd,
+            take_add_folder_request_cmd,
+            explorer_integration_cmd,
+            explorer_integration_status_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

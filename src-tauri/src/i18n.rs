@@ -8,6 +8,17 @@ impl TrayI18n {
     pub fn new(lang: &str) -> Self {
         let mut strings = HashMap::new();
         match lang {
+            "zh-CN" => {
+                strings.insert("quit", "退出");
+                strings.insert("settings", "设置");
+                strings.insert("clean_now", "立即整理");
+                strings.insert("tooltip", "Mouzi");
+                strings.insert("tooltip_one_pending", "Mouzi – {} 个文件待处理");
+                strings.insert("tooltip_many_pending", "Mouzi – {} 个文件待处理");
+                strings.insert("popup_title", "Mouzi");
+                strings.insert("settings_title", "Mouzi 设置");
+                strings.insert("organized", "已整理 {} 个文件");
+            }
             "pl" => {
                 strings.insert("quit", "Zamknij");
                 strings.insert("settings", "Ustawienia");

@@ -1,6 +1,6 @@
 [package]
 name = "mouzi"
-version = "0.1.6"
+version = "0.2.0"
 description = "Mouzi - Intelligent file organizer for Windows"
 authors = ["mouzi"]
 edition = "2021"
@@ -35,6 +35,7 @@ tar = { version = "=0.4.44", default-features = false }
 zip = { version = "=0.6.6", default-features = false, features = ["deflate"] }
 infer = "0.19"
 trash = "5.2"
+sha2 = "0.10"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 

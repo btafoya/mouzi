@@ -4,6 +4,13 @@ import { useAppStore, Rule, ScheduleSettings } from "../store/useAppStore";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import About from "./About";
+import { PRIVATE_BETA } from "../build";
+import ReviewQueue from "./ReviewQueue";
+import HistoryView from "./HistoryView";
+import { RuleConditions, errorText } from "./BetaControls";
+import { nextDestination } from "../utils/rulePath";
+import { normalizeExtensions } from "../utils/ruleInput";
+import { listen } from "@tauri-apps/api/event";
 import {
   Folder,
   FolderOpen,
@@ -15,9 +22,7 @@ import {
   Trash2,
   Save,
   X,
-  Check,
   ChevronLeft,
-  RotateCcw,
   Download,
   Upload,
   Info,
@@ -26,7 +31,7 @@ import {
 } from "lucide-react";
 
 
-type Tab = "folders" | "rules" | "history" | "ignore" | "general" | "about";
+type Tab = "folders" | "rules" | "history" | "ignore" | "general" | "about" | "review";
 type GraceUnit = "seconds" | "minutes" | "hours";
 type ArchiveImportResult = {
   extractedCount: number;
@@ -78,14 +83,6 @@ function nearestGraceStep(seconds: number): number {
   );
 }
 
-function getDirectoryFromPath(filePath: string | null): string | null {
-  if (!filePath) return null;
-  const normalized = filePath.replace(/\\/g, "/");
-  const lastSlash = normalized.lastIndexOf("/");
-  if (lastSlash <= 0) return normalized;
-  return normalized.slice(0, lastSlash);
-}
-
 function defaultSchedule(): ScheduleSettings {
   return {
     schedule_enabled: false,
@@ -102,19 +99,14 @@ export default function Settings() {
   const {
     rules,
     folders,
-    logs,
     loadRules,
     loadFolders,
     loadLogs,
-    addFolder,
     removeFolder,
     updateFolderMode,
     addRule,
     updateRule,
     deleteRule,
-    clearLogs,
-    undoAction,
-    undoAll,
     settings,
     saveSettings,
     setAutostart,
@@ -127,8 +119,23 @@ export default function Settings() {
 
   const [tab, setTab] = useState<Tab>("folders");
   const [editingRule, setEditingRule] = useState<Rule | null>(null);
-  const [confirmClearHistory, setConfirmClearHistory] = useState(false);
   const [newFolderPath, setNewFolderPath] = useState("");
+  const [newFolderMode, setNewFolderMode] = useState("manual");
+  const [newOnlyNew, setNewOnlyNew] = useState(false);
+  const [reviewPaths, setReviewPaths] = useState<string[] | undefined>();
+  const [folderError, setFolderError] = useState("");
+  const [ruleError, setRuleError] = useState("");
+  const [explorer, setExplorer] = useState<[boolean, boolean]>([false, false]);
+  const [explorerError, setExplorerError] = useState("");
+
+  useEffect(() => {
+    const review = async () => { const paths = await invoke<string[] | null>("take_review_request_cmd"); if (paths !== null) { setReviewPaths(paths.length ? paths : undefined); setTab("review"); } };
+    const folder = async () => { const path = await invoke<string | null>("take_add_folder_request_cmd"); if (path) { setNewFolderPath(path); setTab("folders"); } };
+    const listeners = [listen("open-review", review), listen("add-folder-request", folder)];
+    void review(); void folder();
+    invoke<[boolean, boolean]>("explorer_integration_status_cmd").then(setExplorer).catch(e => setExplorerError(errorText(e)));
+    return () => { listeners.forEach(p => p.then(unlisten => unlisten())); };
+  }, []);
 
   const [graceValue, setGraceValue] = useState(300);
   const [graceUnit, setGraceUnit] = useState<GraceUnit>("seconds");
@@ -171,41 +178,32 @@ export default function Settings() {
 
   const handleAddFolder = async () => {
     if (!newFolderPath.trim()) return;
-    await addFolder(newFolderPath.trim(), "silent");
-    setNewFolderPath("");
+    setFolderError("");
+    try {
+      const id = await invoke<number>("add_folder_cmd", { path: newFolderPath.trim(), mode: "paused" });
+      if (newOnlyNew) await invoke("set_only_new_cmd", { id, enabled: true });
+      await updateFolderMode(id, newFolderMode);
+      await loadFolders(); setNewFolderPath("");
+    } catch (e) { setFolderError(errorText(e)); await loadFolders(); }
   };
 
   const handleSaveRule = async () => {
     if (!editingRule) return;
-    if (editingRule.id) {
-      await updateRule(editingRule);
-    } else {
-      await addRule(editingRule);
-    }
-    setEditingRule(null);
+    setRuleError("");
+    const rule = { ...editingRule, extensions: normalizeExtensions(editingRule.extensions) };
+    const sizes = [rule.options?.min_size, rule.options?.max_size];
+    if (sizes.some(value => value != null && (!Number.isSafeInteger(value) || value < 0))) { setRuleError(t("beta.validation.size")); return; }
+    try {
+      if (rule.id) await updateRule(rule); else await addRule(rule);
+      setEditingRule(null);
+    } catch (e) { setRuleError(errorText(e)); }
   };
 
   const handlePickRuleDestination = async () => {
     if (!editingRule) return;
     const selected = await open({ directory: true, multiple: false });
-    const selectedPath = Array.isArray(selected) ? selected[0] : selected;
-    if (!selectedPath) return;
-
-    const watchedFolder =
-      folders.find((folder) => folder.id === editingRule.folder_id) || folders[0];
-    let destination = selectedPath;
-    if (watchedFolder) {
-      const base = watchedFolder.path.replace(/\\/g, "/").replace(/\/$/, "");
-      const target = selectedPath.replace(/\\/g, "/").replace(/\/$/, "");
-      const windowsPath = watchedFolder.path.includes("\\");
-      const baseForComparison = windowsPath ? base.toLowerCase() : base;
-      const targetForComparison = windowsPath ? target.toLowerCase() : target;
-      if (targetForComparison === baseForComparison) {
-        destination = ".";
-      } else if (targetForComparison.startsWith(`${baseForComparison}/`)) {
-        destination = target.slice(base.length + 1);
-      }
-    }
+    const destination = nextDestination(selected, folders.filter(folder => !editingRule.folder_id || folder.id === editingRule.folder_id).map(folder => folder.path));
+    if (destination === null) return;
     setEditingRule({ ...editingRule, destination });
   };
 
@@ -361,6 +359,7 @@ export default function Settings() {
           <span className="font-semibold text-sm">{t("settings.title")}</span>
         </div>
         <nav className="flex-1 px-2 space-y-0.5">
+          <SidebarButton active={tab === "review"} onClick={() => { setReviewPaths(undefined); setTab("review"); }} icon={<Inbox size={16} />} label={t("beta.review")} />
           <SidebarButton
             active={tab === "folders"}
             onClick={() => setTab("folders")}
@@ -402,6 +401,8 @@ export default function Settings() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
+        {PRIVATE_BETA && <p className="mb-5 rounded-md border border-border p-3 text-xs">{t("beta.notice")}</p>}
+        {tab === "review" && <ReviewQueue paths={reviewPaths ?? null} />}
         {tab === "folders" && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">{t("settings.folders.title")}</h2>
@@ -409,6 +410,7 @@ export default function Settings() {
               <input
                 type="text"
                 value={newFolderPath}
+                aria-label={t("settings.folders.placeholder")}
                 onChange={(e) => setNewFolderPath(e.target.value)}
                 placeholder={t("settings.folders.placeholder")}
                 className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
@@ -421,6 +423,11 @@ export default function Settings() {
                 {t("settings.folders.add")}
               </button>
             </div>
+            <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={async () => { const path = await open({ directory: true, multiple: false }); if (typeof path === "string") setNewFolderPath(path); }}>{t("beta.pickFolder")}</button>
+            <label className="block text-sm">{t("beta.folderMode")}<select className="ml-2 border border-border rounded bg-surface p-2" value={newFolderMode} onChange={e => setNewFolderMode(e.target.value)}><option value="manual">{t("settings.folders.modeManual")}</option><option value="suggest">{t("beta.suggest")}</option><option value="silent">{t("settings.folders.modeSilent")}</option></select></label>
+            <label className="flex gap-2 text-sm"><input type="checkbox" checked={newOnlyNew} onChange={e => setNewOnlyNew(e.target.checked)} />{t("beta.onlyNew")}</label>
+            <p className="text-xs text-text-muted">{t("beta.onlyNewHelp")}</p>
+            {folderError && <p role="alert" className="text-red-700 dark:text-red-300">{folderError}</p>}
             <div className="rounded-lg border border-border bg-surface-dark p-4 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -484,11 +491,13 @@ export default function Settings() {
                       >
                         <option value="silent">{t("settings.folders.modeSilent")}</option>
                         <option value="manual">{t("settings.folders.modeManual")}</option>
+                        <option value="suggest">{t("beta.suggest")}</option>
                         <option value="paused">{t("settings.folders.modePaused")}</option>
                       </select>
                       <p className="text-[10px] text-text-muted mt-1">
                         {t("settings.folders.modeDesc")}
                       </p>
+                      <label className="mt-2 flex gap-2 text-sm"><input type="checkbox" checked={f.only_new} onChange={async e => { try { await invoke("set_only_new_cmd", { id: f.id, enabled: e.target.checked }); await loadFolders(); } catch (error) { setFolderError(errorText(error)); } }} />{t("beta.onlyNew")}</label>
                     </div>
                   </div>
                   <button
@@ -638,6 +647,7 @@ export default function Settings() {
                       className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-primary"
                     >
                       <option value="move">{t("settings.rules.actionMove")}</option>
+                      <option value="rename">{t("beta.rename")}</option>
                       <option value="delete">{t("settings.rules.actionRecycle")}</option>
                       <option value="ignore">{t("settings.rules.actionIgnore")}</option>
                     </select>
@@ -664,6 +674,8 @@ export default function Settings() {
                     {t("settings.rules.enabled")}
                   </label>
                 </div>
+                <RuleConditions rule={editingRule} onChange={setEditingRule} />
+                {ruleError && <p role="alert" className="text-red-700 dark:text-red-300">{ruleError}</p>}
                 {editingRule.action === "move" && (
                   <div className="rounded-md border border-border bg-surface p-3 space-y-2">
                     <label className="flex items-center gap-2 text-sm">
@@ -741,7 +753,7 @@ export default function Settings() {
                       )}
                     </div>
                     <div className="text-xs text-text-muted mt-0.5">
-                      {r.extensions.join(", ")} → {r.action === "delete" ? t("settings.rules.recycleBin") : r.destination}
+                      {r.extensions.join(", ")} → {r.action === "delete" ? t("settings.rules.recycleBin") : r.action === "rename" ? r.options?.rename_template : r.destination}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -783,112 +795,8 @@ export default function Settings() {
           </div>
         )}
 
-        {tab === "history" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{t("settings.history.title")}</h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={async () => { await undoAll(); }}
-                  disabled={logs.every((log) => log.undone || log.action !== "move" || !log.destination_path)}
-                  title={logs.every((log) => log.undone || log.action !== "move" || !log.destination_path) ? t("settings.history.revertAllDisabled") : undefined}
-                  className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm text-text hover:bg-surface-dark disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <RotateCcw size={14} />
-                  {t("settings.history.revertAll")}
-                </button>
-                <button
-                  onClick={() => setConfirmClearHistory(true)}
-                  className="flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                >
-                  <Trash2 size={14} />
-                  {t("settings.history.clear")}
-                </button>
-              </div>
-            </div>
-            {logs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-text-muted">
-                <Inbox size={48} className="mb-3 opacity-50" />
-                <span>{t("settings.history.empty")}</span>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className={`flex items-center justify-between rounded-lg border px-4 py-3 ${log.undone ? "border-border bg-surface-dark opacity-50" : "border-border"
-                      }`}
-                  >
-                    <div>
-                      <div className="text-sm">{log.file_name}</div>
-                      <div className="text-xs text-text-muted">
-                        {log.file_type} → {log.action === "delete" ? t("settings.rules.recycleBin") : (log.destination_path || "-")}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {log.destination_path && (
-                        <button
-                          onClick={async () => {
-                            const folderPath = getDirectoryFromPath(log.destination_path);
-                            if (folderPath) {
-                              try {
-                                await invoke("open_folder_cmd", { path: folderPath });
-                              } catch (e) {
-                                console.error("Failed to open folder:", e);
-                              }
-                            }
-                          }}
-                          className="p-1.5 rounded-md text-text-muted hover:bg-border"
-                          title={t("popup.openActionFolder")}
-                          aria-label={t("popup.openActionFolder")}
-                        >
-                          <FolderOpen size={16} />
-                        </button>
-                      )}
-                      {log.undone ? (
-                        <span className="text-xs text-text-muted flex items-center gap-1">
-                          <Check size={12} />
-                          {t("settings.history.undone")}
-                        </span>
-                      ) : log.action === "move" && log.destination_path ? (
-                        <button
-                          onClick={() => log.id && undoAction(log.id)}
-                          className="text-xs text-primary hover:underline"
-                        >
-                          {t("settings.history.undo")}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {confirmClearHistory && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-                <p className="font-medium">{t("settings.history.confirmTitle")}</p>
-                <p className="mt-1 text-xs">{t("settings.history.confirmDescription")}</p>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={async () => {
-                      await clearLogs();
-                      setConfirmClearHistory(false);
-                    }}
-                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
-                  >
-                    {t("settings.history.confirmDelete")}
-                  </button>
-                  <button
-                    onClick={() => setConfirmClearHistory(false)}
-                    className="rounded-md border border-red-200 px-3 py-1.5 text-xs hover:bg-white"
-                  >
-                    {t("common.cancel")}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
+        {tab === "history" && <HistoryView />}
+        {tab === "general" && explorer[0] && <div className="mb-5 space-y-2"><label className="flex gap-2 text-sm"><input type="checkbox" checked={explorer[1]} onChange={async e => { const enabled = e.target.checked; try { await invoke("explorer_integration_cmd", { enabled }); setExplorer([true, enabled]); setExplorerError(""); } catch (error) { setExplorerError(errorText(error)); } }} />{t("beta.explorer")}</label><p className="text-xs text-text-muted">{t("beta.explorerHelp")}</p>{explorerError && <p role="alert">{explorerError}</p>}</div>}
         {tab === "general" && (
           <div className="space-y-6 max-w-md">
             {/* Settings */}
@@ -912,6 +820,7 @@ export default function Settings() {
                   <option value="vi">Tiếng Việt</option>
                   <option value="es">Español</option>
                   <option value="uk">Українська</option>
+                  <option value="zh-CN">简体中文</option>
                 </select>
               </div>
               <div>
@@ -955,7 +864,7 @@ export default function Settings() {
                     {t("settings.general.autoUpdates")}
                   </label>
                   <p className="text-xs text-text-muted">
-                    {t("settings.general.autoUpdatesDesc")}
+                    {t(PRIVATE_BETA ? "beta.updaterDisabled" : "settings.general.autoUpdatesDesc")}
                   </p>
                 </div>
                 <button
@@ -970,6 +879,7 @@ export default function Settings() {
                   role="switch"
                   aria-checked={settings?.auto_update_enabled || false}
                   aria-label={t("settings.general.autoUpdates")}
+                  disabled={PRIVATE_BETA}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings?.auto_update_enabled ? "translate-x-6" : "translate-x-1"}`}
@@ -1302,8 +1212,9 @@ function SidebarButton({
   return (
     <button
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
       className={`w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${active
-        ? "bg-primary/10 text-primary"
+        ? "bg-primary/10 text-text"
         : "text-text-muted hover:bg-border hover:text-text"
         }`}
     >

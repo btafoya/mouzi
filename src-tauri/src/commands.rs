@@ -10,6 +10,107 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_notification::NotificationExt;
 
 #[tauri::command]
+pub async fn preview_cmd(paths: Option<Vec<String>>) -> Result<crate::operations::Preview, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::operations::preview(paths))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn apply_preview_cmd(
+    id: String,
+    selected: Vec<String>,
+) -> Result<Vec<crate::operations::OperationResult>, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::operations::apply(&id, &selected))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn discard_preview_cmd(id: String) {
+    crate::operations::discard(&id);
+}
+
+#[tauri::command]
+pub fn history_cmd(filter: crate::operations::HistoryFilter) -> Result<Vec<ActionLog>, String> {
+    crate::operations::history(&filter)
+}
+
+#[tauri::command]
+pub fn undo_selected_cmd(
+    mut ids: Vec<i64>,
+    state: tauri::State<AppState>,
+) -> Result<Vec<crate::operations::OperationResult>, String> {
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
+    ids.sort_unstable_by(|a, b| b.cmp(a));
+    ids.dedup();
+    let mut results = Vec::new();
+    for id in ids {
+        let source: String = get_db()
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT source_path FROM action_logs WHERE id=?1",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap_or_default();
+        state
+            .ignored_files
+            .lock()
+            .unwrap()
+            .insert(source.clone(), Instant::now());
+        let result = crate::operations::undo_one(id);
+        results.push(crate::operations::OperationResult {
+            id: id.to_string(),
+            source,
+            success: result.is_ok(),
+            error: result.err(),
+        });
+    }
+    Ok(results)
+}
+
+#[tauri::command]
+pub fn set_only_new_cmd(app: tauri::AppHandle, id: i64, enabled: bool) -> Result<(), String> {
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
+    set_only_new(id, enabled)?;
+    app.state::<AppState>()
+        .watcher
+        .lock()
+        .unwrap()
+        .refresh(app.clone())
+}
+
+#[tauri::command]
+pub fn show_review_cmd(app: tauri::AppHandle, paths: Vec<String>) {
+    *app.state::<AppState>().review_request.lock().unwrap() = Some(paths);
+    crate::tray::show_settings_window(&app);
+    use tauri::Emitter;
+    let _ = app.emit("open-review", ());
+}
+
+#[tauri::command]
+pub fn take_review_request_cmd(state: tauri::State<AppState>) -> Option<Vec<String>> {
+    state.review_request.lock().unwrap().take()
+}
+
+#[tauri::command]
+pub fn take_add_folder_request_cmd(state: tauri::State<AppState>) -> Option<String> {
+    state.add_folder_request.lock().unwrap().take()
+}
+
+#[tauri::command]
+pub fn explorer_integration_cmd(enabled: bool) -> Result<(), String> {
+    crate::integration::set_enabled(enabled)
+}
+
+#[tauri::command]
+pub fn explorer_integration_status_cmd() -> (bool, bool) {
+    (cfg!(target_os = "windows"), crate::integration::enabled())
+}
+
+#[tauri::command]
 pub fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
@@ -27,6 +128,8 @@ pub fn get_system_language() -> String {
         "ja" => "ja".to_string(),
         "es" => "es".to_string(),
         "uk" => "uk".to_string(),
+        "zh" => "zh-CN".to_string(),
+        "vi" => "vi".to_string(),
         _ => "en".to_string(),
     }
 }
@@ -38,16 +141,19 @@ pub fn get_rules_cmd() -> Result<Vec<Rule>, String> {
 
 #[tauri::command]
 pub fn add_rule_cmd(rule: Rule) -> Result<i64, String> {
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
     add_rule(&rule).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn update_rule_cmd(rule: Rule) -> Result<(), String> {
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
     update_rule(&rule).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn delete_rule_cmd(id: i64) -> Result<(), String> {
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
     delete_rule(id).map_err(|e| e.to_string())
 }
 
@@ -58,7 +164,26 @@ pub fn get_folders_cmd() -> Result<Vec<WatchedFolder>, String> {
 
 #[tauri::command]
 pub fn add_folder_cmd(app: tauri::AppHandle, path: String, mode: String) -> Result<i64, String> {
-    let _ = std::fs::create_dir_all(&path);
+    if !is_valid_folder_mode(&mode) {
+        return Err("Invalid folder mode".into());
+    }
+    let path = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
+    if !path.is_dir() {
+        return Err("Select an existing folder".into());
+    }
+    if get_watched_folders()
+        .map_err(|e| e.to_string())?
+        .iter()
+        .any(|f| std::fs::canonicalize(&f.path).ok().as_ref() == Some(&path))
+    {
+        return Err("This folder is already watched".into());
+    }
+    let path = path.to_string_lossy();
+    let path = if let Some(unc) = path.strip_prefix("\\\\?\\UNC\\") {
+        format!("\\\\{unc}")
+    } else {
+        path.strip_prefix("\\\\?\\").unwrap_or(&path).to_string()
+    };
     let id = add_watched_folder(&path, &mode).map_err(|e| e.to_string())?;
     if let Some(state) = app.try_state::<crate::AppState>() {
         let mut watcher = state.watcher.lock().unwrap();
@@ -69,6 +194,7 @@ pub fn add_folder_cmd(app: tauri::AppHandle, path: String, mode: String) -> Resu
 
 #[tauri::command]
 pub fn remove_folder_cmd(app: tauri::AppHandle, id: i64) -> Result<(), String> {
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
     remove_watched_folder(id).map_err(|e| e.to_string())?;
     if let Some(state) = app.try_state::<crate::AppState>() {
         let mut watcher = state.watcher.lock().unwrap();
@@ -79,6 +205,7 @@ pub fn remove_folder_cmd(app: tauri::AppHandle, id: i64) -> Result<(), String> {
 
 #[tauri::command]
 pub fn update_folder_mode_cmd(app: tauri::AppHandle, id: i64, mode: String) -> Result<(), String> {
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
     if !is_valid_folder_mode(&mode) {
         return Err(format!("Invalid folder mode: {}", mode));
     }
@@ -124,56 +251,44 @@ pub fn get_stats_cmd() -> Result<Vec<(String, i64)>, String> {
 
 #[tauri::command]
 pub fn undo_action_cmd(id: i64, state: tauri::State<AppState>) -> Result<bool, String> {
-    let db = get_db();
-    let conn = db.lock().unwrap();
-    let log: Option<(String, String)> = conn
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
+    let source: String = get_db()
+        .lock()
+        .unwrap()
         .query_row(
-            "SELECT source_path, destination_path FROM action_logs WHERE id=?1 AND undone=0 AND action='move' AND destination_path IS NOT NULL",
+            "SELECT source_path FROM action_logs WHERE id=?1",
             [id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |r| r.get(0),
         )
-        .ok();
-
-    if let Some((source, dest)) = log {
-        if !dest.is_empty() && std::path::Path::new(&dest).exists() {
-            let _ = std::fs::rename(&dest, &source);
-            // Ignore this file for 5 seconds so the watcher doesn't re-process it
-            let mut ignored = state.ignored_files.lock().unwrap();
-            ignored.insert(source, Instant::now());
-        }
-        conn.execute("UPDATE action_logs SET undone=1 WHERE id=?1", [id])
-            .map_err(|e| e.to_string())?;
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+        .map_err(|e| e.to_string())?;
+    state
+        .ignored_files
+        .lock()
+        .unwrap()
+        .insert(source, Instant::now());
+    crate::operations::undo_one(id)
 }
 
 #[tauri::command]
 pub fn undo_all_cmd(state: tauri::State<AppState>) -> Result<i32, String> {
-    let logs = crate::db::get_undoable_logs().map_err(|e| e.to_string())?;
-    let db = get_db();
-    let conn = db.lock().unwrap();
-    let mut count = 0;
-
-    for (id, source, dest) in logs {
-        if !dest.is_empty() && std::path::Path::new(&dest).exists() {
-            let _ = std::fs::rename(&dest, &source);
-            let mut ignored = state.ignored_files.lock().unwrap();
-            ignored.insert(source, Instant::now());
-        }
-        let _ = conn.execute("UPDATE action_logs SET undone=1 WHERE id=?1", [id]);
-        count += 1;
+    let ids = get_recent_logs(-1)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|l| !l.undone && ["move", "rename"].contains(&l.action.as_str()))
+        .filter_map(|l| l.id)
+        .collect();
+    let results = undo_selected_cmd(ids, state)?;
+    if results.iter().any(|r| !r.success) {
+        return Err(serde_json::to_string(&results).unwrap());
     }
-
-    Ok(count)
+    Ok(results.len() as i32)
 }
 
 /// Return the current app version and release date.
 #[tauri::command]
 pub fn get_version_cmd(app: AppHandle) -> Result<(String, String), String> {
     let version = app.package_info().version.to_string();
-    let release_date = "2026-08-27".to_string();
+    let release_date = "2026-09-27".to_string();
     Ok((version, release_date))
 }
 
@@ -253,7 +368,11 @@ pub struct ArchiveImportSummary {
 pub fn import_archive_cmd(path: String) -> Result<ArchiveImportSummary, String> {
     let extraction = crate::archive::extract_archive(Path::new(&path))?;
     let staging_path = extraction.staging_dir.to_string_lossy().to_string();
-    let results = manual_scan_folder(&staging_path)?;
+    let results = crate::rules::scan_folder_in_run(
+        &staging_path,
+        &crate::operations::new_run_id(),
+        "archive",
+    )?;
 
     Ok(ArchiveImportSummary {
         extracted_count: extraction.extracted_files,
@@ -272,20 +391,12 @@ pub fn open_folder_cmd(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         if path.starts_with("http://") || path.starts_with("https://") {
-            std::process::Command::new("cmd")
-                .args(["/c", "start", "", &path])
-                .spawn()
-                .map_err(|e| e.to_string())?;
+            tauri_plugin_opener::open_url(&path, None::<&str>).map_err(|e| e.to_string())?;
         } else {
             // Normalize to backslashes - Windows Explorer requires them
             let win_path = path.replace('/', "\\");
-            std::process::Command::new("powershell")
-                .args([
-                    "-NoProfile",
-                    "-NonInteractive",
-                    "-Command",
-                    &format!("explorer '{}'", win_path),
-                ])
+            std::process::Command::new("explorer.exe")
+                .arg(win_path)
                 .spawn()
                 .map_err(|e| e.to_string())?;
         }
@@ -446,16 +557,6 @@ pub fn export_rules_cmd(path: String) -> Result<(), String> {
 pub fn import_rules_cmd(path: String, replace: bool) -> Result<usize, String> {
     let data = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let rules: Vec<Rule> = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-
-    if replace {
-        delete_all_rules().map_err(|e| e.to_string())?;
-    }
-
-    let mut count = 0;
-    for mut rule in rules {
-        rule.id = None;
-        add_rule(&rule).map_err(|e| e.to_string())?;
-        count += 1;
-    }
-    Ok(count)
+    let _guard = crate::operations::OPERATION_LOCK.lock().unwrap();
+    import_rules(&rules, replace)
 }

@@ -14,13 +14,22 @@ export interface Rule {
   notification_message: string | null;
   normalize_extensions: boolean;
   extension_mappings: string;
+  options?: RuleOptions;
 }
+
+export interface RuleOptions {
+  min_size: number | null; max_size: number | null;
+  modified_after: string | null; modified_before: string | null;
+  rename_template: string;
+}
+export const defaultRuleOptions: RuleOptions = { min_size: null, max_size: null, modified_after: null, modified_before: null, rename_template: '{stem}.{extension}' };
 
 export interface WatchedFolder {
   id?: number;
   path: string;
   enabled: boolean;
   mode: string;
+  only_new: boolean;
 }
 
 export interface ActionLog {
@@ -32,6 +41,11 @@ export interface ActionLog {
   file_name: string;
   file_type: string;
   undone: boolean;
+  run_id: string | null;
+  trigger: string;
+  file_extension: string;
+  file_size: number;
+  fingerprint: string | null;
 }
 
 export interface AppSettings {

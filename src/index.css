@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: var(--color-primary-val);
   --color-primary-hover: var(--color-primary-hover-val);
@@ -17,7 +19,7 @@
   --color-surface-dark-val: #f5f2ed;
   --color-border-val: #e7e2da;
   --color-text-val: #1c1917;
-  --color-text-muted-val: #8c7f70;
+  --color-text-muted-val: #726658;
 }
 
 .dark {
@@ -41,6 +43,11 @@ body,
 
 body {
   background: transparent;
+}
+
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--color-text-val);
+  outline-offset: 3px;
 }
 
 select {

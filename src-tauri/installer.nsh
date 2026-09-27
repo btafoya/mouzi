@@ -5,3 +5,7 @@
   Sleep 500
   ExecWait '"$SYSDIR\taskkill.exe" /F /IM mouzi.exe /T' $0
 !macroend
+
+!macro NSIS_HOOK_PREUNINSTALL
+  DeleteRegKey HKCU "Software\Classes\Directory\shell\Mouzi"
+!macroend

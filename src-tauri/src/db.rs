@@ -13,14 +13,19 @@ pub const FOLDER_MODE_SILENT: &str = "silent";
 pub const FOLDER_MODE_MANUAL: &str = "manual";
 pub const FOLDER_MODE_PAUSED: &str = "paused";
 
-pub const FOLDER_MODES: &[&str] = &[FOLDER_MODE_SILENT, FOLDER_MODE_MANUAL, FOLDER_MODE_PAUSED];
+pub const FOLDER_MODES: &[&str] = &[
+    FOLDER_MODE_SILENT,
+    FOLDER_MODE_MANUAL,
+    FOLDER_MODE_PAUSED,
+    "suggest",
+];
 
 pub fn is_folder_auto_mode(mode: &str) -> bool {
     mode == FOLDER_MODE_SILENT
 }
 
 pub fn is_folder_manual_mode(mode: &str) -> bool {
-    mode == FOLDER_MODE_MANUAL
+    mode == FOLDER_MODE_MANUAL || mode == "suggest"
 }
 
 pub fn is_folder_paused_mode(mode: &str) -> bool {
@@ -34,6 +39,28 @@ pub fn is_valid_folder_mode(mode: &str) -> bool {
 // ---------------------------------------------------------------------------
 // Data structures
 // ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RuleOptions {
+    pub min_size: Option<u64>,
+    pub max_size: Option<u64>,
+    pub modified_after: Option<String>,
+    pub modified_before: Option<String>,
+    pub rename_template: String,
+}
+
+impl Default for RuleOptions {
+    fn default() -> Self {
+        Self {
+            min_size: None,
+            max_size: None,
+            modified_after: None,
+            modified_before: None,
+            rename_template: "{stem}.{extension}".into(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rule {
@@ -52,6 +79,8 @@ pub struct Rule {
     pub normalize_extensions: bool,
     #[serde(default = "default_extension_mappings")]
     pub extension_mappings: String,
+    #[serde(default)]
+    pub options: RuleOptions,
 }
 
 fn default_extension_mappings() -> String {
@@ -66,6 +95,7 @@ pub struct WatchedFolder {
     /// One of: "silent" (real-time auto-organize), "manual" (collect only),
     /// "paused" (do not watch).
     pub mode: String,
+    pub only_new: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +108,11 @@ pub struct ActionLog {
     pub file_name: String,
     pub file_type: String,
     pub undone: bool,
+    pub run_id: Option<String>,
+    pub trigger: String,
+    pub file_extension: String,
+    pub file_size: u64,
+    pub fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -242,6 +277,7 @@ pub fn init_db(app_dir: PathBuf) -> SqliteResult<()> {
             [],
         )?;
     }
+    migrate_beta_schema(&conn)?;
     // Insert default settings if empty
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM settings", [], |row| row.get(0))?;
 
@@ -252,6 +288,9 @@ pub fn init_db(app_dir: PathBuf) -> SqliteResult<()> {
         )?;
     }
 
+    if env!("CARGO_PKG_VERSION").contains("beta") && count == 0 {
+        conn.execute("UPDATE settings SET autostart=0, auto_update_enabled=0", [])?;
+    }
     DB.set(Arc::new(Mutex::new(conn)))
         .map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
 
@@ -260,6 +299,134 @@ pub fn init_db(app_dir: PathBuf) -> SqliteResult<()> {
 
 pub fn get_db() -> Arc<Mutex<Connection>> {
     DB.get().expect("Database not initialized").clone()
+}
+
+pub fn normalize_extensions(values: &[String]) -> Vec<String> {
+    let mut result = Vec::new();
+    for value in values.iter().flat_map(|v| v.split(',')) {
+        let value = value.trim().trim_start_matches('.').to_lowercase();
+        if !value.is_empty() && !result.contains(&value) {
+            result.push(value);
+        }
+    }
+    result
+}
+
+fn migrate_beta_schema(conn: &Connection) -> SqliteResult<()> {
+    for (table, name, definition) in [
+        ("rules", "options", "TEXT NOT NULL DEFAULT '{}'"),
+        ("watched_folders", "only_new", "INTEGER NOT NULL DEFAULT 0"),
+        ("action_logs", "run_id", "TEXT"),
+        ("action_logs", "trigger", "TEXT NOT NULL DEFAULT 'legacy'"),
+        ("action_logs", "file_extension", "TEXT NOT NULL DEFAULT ''"),
+        ("action_logs", "file_size", "INTEGER NOT NULL DEFAULT 0"),
+        ("action_logs", "fingerprint", "TEXT"),
+    ] {
+        let columns = conn
+            .prepare(&format!("PRAGMA table_info({table})"))?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<SqliteResult<Vec<_>>>()?;
+        if !columns.iter().any(|column| column == name) {
+            conn.execute(
+                &format!("ALTER TABLE {table} ADD COLUMN {name} {definition}"),
+                [],
+            )?;
+        }
+    }
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS folder_baseline (folder_id INTEGER NOT NULL, path TEXT NOT NULL, PRIMARY KEY(folder_id,path)); CREATE INDEX IF NOT EXISTS logs_run ON action_logs(run_id);")?;
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS processed_files (path TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, restored INTEGER NOT NULL DEFAULT 0)")?;
+    let rows = conn
+        .prepare("SELECT id, extensions FROM rules")?
+        .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?
+        .collect::<SqliteResult<Vec<_>>>()?;
+    for (id, extensions) in rows {
+        conn.execute(
+            "UPDATE rules SET extensions=?1 WHERE id=?2",
+            params![normalize_extensions(&[extensions]).join(","), id],
+        )?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    #[test]
+    fn upgrade_preserves_existing_rows_and_is_repeatable() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE rules(id INTEGER PRIMARY KEY, extensions TEXT, destination TEXT, enabled INTEGER);
+            CREATE TABLE watched_folders(id INTEGER PRIMARY KEY, path TEXT, mode TEXT);
+            CREATE TABLE action_logs(id INTEGER PRIMARY KEY, source_path TEXT, destination_path TEXT, undone INTEGER);
+            CREATE TABLE settings(language TEXT, autostart INTEGER, auto_update_enabled INTEGER);
+            INSERT INTO rules VALUES(7, 'exe, msi,', 'Installers', 0);
+            INSERT INTO watched_folders VALUES(3, '/example/downloads', 'paused');
+            INSERT INTO action_logs VALUES(42, '/example/a', '/example/b', 0);
+            INSERT INTO settings VALUES('pl', 0, 0);").unwrap();
+        migrate_beta_schema(&conn).unwrap();
+        migrate_beta_schema(&conn).unwrap();
+        let rule: (String, String, i64, String) = conn.query_row("SELECT extensions,destination,enabled,options FROM rules WHERE id=7", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap();
+        assert_eq!(rule, ("exe,msi".into(), "Installers".into(), 0, "{}".into()));
+        let folder: (String, i64) = conn.query_row("SELECT mode,only_new FROM watched_folders WHERE id=3", [], |r| Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert_eq!(folder, ("paused".into(), 0));
+        let log: (String, String, Option<String>) = conn.query_row("SELECT destination_path,trigger,fingerprint FROM action_logs WHERE id=42", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
+        assert_eq!(log, ("/example/b".into(), "legacy".into(), None));
+        let settings: (String,i64,i64) = conn.query_row("SELECT language,autostart,auto_update_enabled FROM settings", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
+        assert_eq!(settings, ("pl".into(),0,0));
+    }
+}
+
+pub fn set_only_new(id: i64, enabled: bool) -> Result<(), String> {
+    let folder = get_watched_folders()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|f| f.id == Some(id))
+        .ok_or("Folder not found")?;
+    if folder.only_new == enabled {
+        return Ok(());
+    }
+    let mut paths = Vec::new();
+    if enabled {
+        for entry in std::fs::read_dir(&folder.path).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            if entry.path().is_file() {
+                paths.push(entry.path().to_string_lossy().to_string());
+            }
+        }
+    }
+    let db = get_db();
+    let mut conn = db.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM folder_baseline WHERE folder_id=?1", [id])
+        .map_err(|e| e.to_string())?;
+    for path in paths {
+        tx.execute(
+            "INSERT INTO folder_baseline(folder_id,path) VALUES (?1,?2)",
+            params![id, path],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.execute(
+        "UPDATE watched_folders SET only_new=?1 WHERE id=?2",
+        params![enabled, id],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
+pub fn is_baseline_file(path: &std::path::Path) -> bool {
+    let db = get_db();
+    let conn = db.lock().unwrap();
+    conn.query_row("SELECT EXISTS(SELECT 1 FROM folder_baseline b JOIN watched_folders f ON f.id=b.folder_id WHERE f.only_new=1 AND b.path=?1)", [path.to_string_lossy().as_ref()], |r| r.get(0)).unwrap_or(true)
+}
+
+pub fn forget_removed_baseline(path: &std::path::Path) {
+    if !path.exists() {
+        let _ = get_db().lock().unwrap().execute(
+            "DELETE FROM folder_baseline WHERE path=?1",
+            [path.to_string_lossy().as_ref()],
+        );
+    }
 }
 
 pub fn migrate_rules_to_relative() -> SqliteResult<()> {
@@ -334,7 +501,11 @@ pub fn insert_default_rules(_folder_path: &str) -> SqliteResult<()> {
         (
             "Installers",
             4,
-            vec!["exe", "msi", "msix", "appx"],
+            if cfg!(target_os = "macos") {
+                vec!["exe", "msi", "msix", "appx", "dmg", "pkg"]
+            } else {
+                vec!["exe", "msi", "msix", "appx"]
+            },
             "Installers",
         ),
         (
@@ -368,7 +539,7 @@ pub fn get_rules() -> SqliteResult<Vec<Rule>> {
     let db = get_db();
     let conn = db.lock().unwrap();
     let mut stmt = conn.prepare(
-        "SELECT id, name, priority, enabled, extensions, pattern, destination, action, folder_id, notification_message, normalize_extensions, extension_mappings FROM rules ORDER BY priority"
+        "SELECT id, name, priority, enabled, extensions, pattern, destination, action, folder_id, notification_message, normalize_extensions, extension_mappings, options FROM rules ORDER BY priority, id"
     )?;
 
     let rules = stmt
@@ -379,10 +550,7 @@ pub fn get_rules() -> SqliteResult<Vec<Rule>> {
                 name: row.get(1)?,
                 priority: row.get(2)?,
                 enabled: row.get::<_, i32>(3)? != 0,
-                extensions: exts_str
-                    .split(',')
-                    .map(|s| s.trim().to_lowercase())
-                    .collect(),
+                extensions: normalize_extensions(&[exts_str]),
                 pattern: row.get(5)?,
                 destination: row.get(6)?,
                 action: row.get(7)?,
@@ -390,6 +558,13 @@ pub fn get_rules() -> SqliteResult<Vec<Rule>> {
                 notification_message: row.get(9)?,
                 normalize_extensions: row.get::<_, i32>(10)? != 0,
                 extension_mappings: row.get(11)?,
+                options: serde_json::from_str(&row.get::<_, String>(12)?).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        12,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?,
             })
         })?
         .collect::<SqliteResult<Vec<_>>>()?;
@@ -398,23 +573,47 @@ pub fn get_rules() -> SqliteResult<Vec<Rule>> {
 }
 
 pub fn add_rule(rule: &Rule) -> SqliteResult<i64> {
+    crate::rules::validate_rule(rule).map_err(rusqlite::Error::InvalidParameterName)?;
     let db = get_db();
     let conn = db.lock().unwrap();
-    let exts = rule.extensions.join(",");
+    insert_rule(&conn, rule)
+}
+
+fn insert_rule(conn: &Connection, rule: &Rule) -> SqliteResult<i64> {
+    let exts = normalize_extensions(&rule.extensions).join(",");
     conn.execute(
-        "INSERT INTO rules (name, priority, enabled, extensions, pattern, destination, action, folder_id, notification_message, normalize_extensions, extension_mappings) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-        params![rule.name, rule.priority, rule.enabled as i32, exts, rule.pattern, rule.destination, rule.action, rule.folder_id, rule.notification_message, rule.normalize_extensions as i32, rule.extension_mappings],
+        "INSERT INTO rules (name, priority, enabled, extensions, pattern, destination, action, folder_id, notification_message, normalize_extensions, extension_mappings, options) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        params![rule.name, rule.priority, rule.enabled as i32, exts, rule.pattern, rule.destination, rule.action, rule.folder_id, rule.notification_message, rule.normalize_extensions as i32, rule.extension_mappings, serde_json::to_string(&rule.options).unwrap()],
     )?;
     Ok(conn.last_insert_rowid())
 }
 
+pub fn import_rules(rules: &[Rule], replace: bool) -> Result<usize, String> {
+    for rule in rules {
+        crate::rules::validate_rule(rule)?;
+    }
+    let db = get_db();
+    let mut conn = db.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    if replace {
+        tx.execute("DELETE FROM rules", [])
+            .map_err(|e| e.to_string())?;
+    }
+    for rule in rules {
+        insert_rule(&tx, rule).map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(rules.len())
+}
+
 pub fn update_rule(rule: &Rule) -> SqliteResult<()> {
+    crate::rules::validate_rule(rule).map_err(rusqlite::Error::InvalidParameterName)?;
     let db = get_db();
     let conn = db.lock().unwrap();
-    let exts = rule.extensions.join(",");
+    let exts = normalize_extensions(&rule.extensions).join(",");
     conn.execute(
-        "UPDATE rules SET name=?1, priority=?2, enabled=?3, extensions=?4, pattern=?5, destination=?6, action=?7, folder_id=?8, notification_message=?9, normalize_extensions=?10, extension_mappings=?11 WHERE id=?12",
-        params![rule.name, rule.priority, rule.enabled as i32, exts, rule.pattern, rule.destination, rule.action, rule.folder_id, rule.notification_message, rule.normalize_extensions as i32, rule.extension_mappings, rule.id],
+        "UPDATE rules SET name=?1, priority=?2, enabled=?3, extensions=?4, pattern=?5, destination=?6, action=?7, folder_id=?8, notification_message=?9, normalize_extensions=?10, extension_mappings=?11, options=?12 WHERE id=?13",
+        params![rule.name, rule.priority, rule.enabled as i32, exts, rule.pattern, rule.destination, rule.action, rule.folder_id, rule.notification_message, rule.normalize_extensions as i32, rule.extension_mappings, serde_json::to_string(&rule.options).unwrap(), rule.id],
     )?;
     Ok(())
 }
@@ -436,7 +635,7 @@ pub fn delete_all_rules() -> SqliteResult<()> {
 pub fn get_watched_folders() -> SqliteResult<Vec<WatchedFolder>> {
     let db = get_db();
     let conn = db.lock().unwrap();
-    let mut stmt = conn.prepare("SELECT id, path, enabled, mode FROM watched_folders")?;
+    let mut stmt = conn.prepare("SELECT id, path, enabled, mode, only_new FROM watched_folders")?;
     let folders = stmt
         .query_map([], |row| {
             Ok(WatchedFolder {
@@ -444,6 +643,7 @@ pub fn get_watched_folders() -> SqliteResult<Vec<WatchedFolder>> {
                 path: row.get(1)?,
                 enabled: row.get::<_, i32>(2)? != 0,
                 mode: row.get(3)?,
+                only_new: row.get(4)?,
             })
         })?
         .collect::<SqliteResult<Vec<_>>>()?;
@@ -454,7 +654,7 @@ pub fn add_watched_folder(path: &str, mode: &str) -> SqliteResult<i64> {
     let db = get_db();
     let conn = db.lock().unwrap();
     conn.execute(
-        "INSERT OR IGNORE INTO watched_folders (path, enabled, mode) VALUES (?1, 1, ?2)",
+        "INSERT INTO watched_folders (path, enabled, mode) VALUES (?1, 1, ?2)",
         params![path, mode],
     )?;
     Ok(conn.last_insert_rowid())
@@ -464,6 +664,10 @@ pub fn remove_watched_folder(id: i64) -> SqliteResult<()> {
     let db = get_db();
     let conn = db.lock().unwrap();
     conn.execute("DELETE FROM watched_folders WHERE id=?1", params![id])?;
+    conn.execute(
+        "DELETE FROM folder_baseline WHERE folder_id=?1",
+        params![id],
+    )?;
     Ok(())
 }
 
@@ -479,26 +683,39 @@ pub fn update_folder_mode(id: i64, mode: &str) -> SqliteResult<()> {
 
 pub fn log_action(log: &ActionLog) -> SqliteResult<i64> {
     let db = get_db();
-    let conn = db.lock().unwrap();
-    conn.execute(
-        "INSERT INTO action_logs (timestamp, source_path, destination_path, action, file_name, file_type, undone) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
+    let mut conn = db.lock().unwrap();
+    let tx = conn.transaction()?;
+    tx.execute(
+        "INSERT INTO action_logs (timestamp, source_path, destination_path, action, file_name, file_type, undone, run_id, trigger, file_extension, file_size, fingerprint) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, ?11)",
         params![
             log.timestamp.to_rfc3339(),
             log.source_path,
             log.destination_path,
             log.action,
             log.file_name,
-            log.file_type
+            log.file_type, log.run_id, log.trigger, log.file_extension, log.file_size, log.fingerprint
         ],
     )?;
-    Ok(conn.last_insert_rowid())
+    let id = tx.last_insert_rowid();
+    if let (Some(path), Some(hash)) = (&log.destination_path, &log.fingerprint) {
+        tx.execute(
+            "INSERT OR REPLACE INTO processed_files(path,fingerprint,restored) VALUES (?1,?2,0)",
+            params![path, hash],
+        )?;
+    }
+    tx.execute(
+        "DELETE FROM processed_files WHERE path=?1",
+        [&log.source_path],
+    )?;
+    tx.commit()?;
+    Ok(id)
 }
 
 pub fn get_recent_logs(limit: i64) -> SqliteResult<Vec<ActionLog>> {
     let db = get_db();
     let conn = db.lock().unwrap();
     let mut stmt = conn.prepare(
-        "SELECT id, timestamp, source_path, destination_path, action, file_name, file_type, undone FROM action_logs ORDER BY timestamp DESC LIMIT ?1"
+        "SELECT id, timestamp, source_path, destination_path, action, file_name, file_type, undone, run_id, trigger, file_extension, file_size, fingerprint FROM action_logs ORDER BY id DESC LIMIT ?1"
     )?;
     let logs = stmt
         .query_map(params![limit], |row| {
@@ -514,25 +731,12 @@ pub fn get_recent_logs(limit: i64) -> SqliteResult<Vec<ActionLog>> {
                 file_name: row.get(5)?,
                 file_type: row.get(6)?,
                 undone: row.get::<_, i32>(7)? != 0,
+                run_id: row.get(8)?,
+                trigger: row.get(9)?,
+                file_extension: row.get(10)?,
+                file_size: row.get(11)?,
+                fingerprint: row.get(12)?,
             })
-        })?
-        .collect::<SqliteResult<Vec<_>>>()?;
-    Ok(logs)
-}
-
-pub fn get_undoable_logs() -> SqliteResult<Vec<(i64, String, String)>> {
-    let db = get_db();
-    let conn = db.lock().unwrap();
-    let mut stmt = conn.prepare(
-        "SELECT id, source_path, destination_path FROM action_logs WHERE undone = 0 AND action = 'move' AND destination_path IS NOT NULL ORDER BY timestamp DESC"
-    )?;
-    let logs = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-            ))
         })?
         .collect::<SqliteResult<Vec<_>>>()?;
     Ok(logs)
@@ -550,23 +754,6 @@ pub fn get_weekly_stats() -> SqliteResult<Vec<(String, i64)>> {
         })?
         .collect::<SqliteResult<Vec<_>>>()?;
     Ok(stats)
-}
-
-pub fn undo_action(id: i64) -> SqliteResult<Option<(String, String)>> {
-    let db = get_db();
-    let conn = db.lock().unwrap();
-    let log: Option<(String, String)> = conn
-        .query_row(
-            "SELECT source_path, destination_path FROM action_logs WHERE id=?1 AND undone=0 AND action='move' AND destination_path IS NOT NULL",
-            params![id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .ok();
-
-    if log.is_some() {
-        conn.execute("UPDATE action_logs SET undone=1 WHERE id=?1", params![id])?;
-    }
-    Ok(log)
 }
 
 pub fn get_settings() -> SqliteResult<AppSettings> {

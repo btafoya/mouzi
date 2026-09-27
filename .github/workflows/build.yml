@@ -32,6 +32,26 @@ jobs:
       - name: Build Windows installers and updater signatures
         run: npm run tauri build -- --ci
 
+      - name: Test Rust and rule helpers
+        run: |
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+          node --test tests/rules.test.mjs
+
+      - name: Test the Windows release executable
+        shell: pwsh
+        run: |
+          npm install --no-save --package-lock=false playwright
+          $env:MOUZI_TEST_EXE = 'src-tauri/target/release/mouzi.exe'
+          $env:MOUZI_TEST_VERSION = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          node tests/private-beta-ui.mjs
+
+      - name: Upload Windows test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-evidence
+          path: artifacts/*/private-tests/
+
       - name: Collect Windows artifacts
         shell: pwsh
         run: |
@@ -72,13 +92,16 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xauth xvfb
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xauth xvfb libfuse2 weston xwayland imagemagick tesseract-ocr
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build Linux packages
         run: npm run tauri build -- --ci
+
+      - name: Test Rust on Linux
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
 
       - name: Repair and re-sign AppImage
         shell: bash
@@ -106,6 +129,16 @@ jobs:
           test -s "$DEB.sig"
           test -s "$RPM.sig"
 
+      - name: Render Settings under Wayland and XWayland
+        run: xvfb-run -a -s '-screen 0 1440x1000x24' dbus-run-session -- bash .github/scripts/test-linux-ui.sh "$APPIMAGE_PATH" linux-test-evidence
+
+      - name: Upload Linux test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-test-evidence
+          path: linux-test-evidence/
+
       - name: Install AppImage with AppManager 3.7.3
         shell: bash
         run: |
@@ -113,10 +146,9 @@ jobs:
             https://github.com/kem-a/AppManager/releases/download/v3.7.3/AppManager-3.7.3-anylinux-x86_64.AppImage \
             -o "$RUNNER_TEMP/AppManager.AppImage"
           chmod +x "$RUNNER_TEMP/AppManager.AppImage"
-          export HOME="$RUNNER_TEMP/appmanager-home"
-          export XDG_CONFIG_HOME="$HOME/.config"
-          export XDG_DATA_HOME="$HOME/.local/share"
-          mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/appmanager-home/.config"
+          export XDG_DATA_HOME="$RUNNER_TEMP/appmanager-home/.local/share"
+          mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
           cp "$APPIMAGE_PATH" "$RUNNER_TEMP/Mouzi-AppManager-test.AppImage"
           xvfb-run -a "$RUNNER_TEMP/AppManager.AppImage" install "$RUNNER_TEMP/Mouzi-AppManager-test.AppImage"
 

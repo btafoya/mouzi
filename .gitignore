@@ -3,6 +3,7 @@ node_modules/
 
 # Build outputs
 dist/
+artifacts/
 
 # Tauri Rust target
 src-tauri/target/
