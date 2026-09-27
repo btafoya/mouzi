@@ -1,0 +1,14 @@
+---
+version: 0.2.1
+date: 2026-09-27
+title: Complete translations for the new organization controls
+---
+
+- Translate the review queue, folder options, rule conditions, rename templates, history filters, confirmations and errors into all 11 supported interface languages.
+- Fill in missing Spanish archive-import text.
+- Keep the new translations in the standard locale JSON files for contributors.
+- Check every language for missing keys, empty strings and mismatched placeholders in CI. Tests also resolve each key without English fallback.
+
+This patch addresses [#67](https://github.com/hsr88/mouzi/issues/67) and does not change file-organization behavior. Update from inside Mouzi or use the [download page](/download). Existing stable settings, rules and history are preserved.
+
+Windows packages remain unsigned with Authenticode. Updater integrity signatures are separate. Official packages cover Windows and Linux; macOS remains experimental.

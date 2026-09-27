@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve, join, extname, relative } from 'node:path';
 import { createServer } from 'node:http';
+const version = JSON.parse(await readFile('src-tauri/tauri.conf.json', 'utf8')).version;
 const root = resolve('website/dist');
 async function files(dir) {
   const out = [];
@@ -52,10 +53,11 @@ try {
   });
   assert.ok(results.some(r => r.url.includes('organization-preview')), 'New preview documentation missing from search');
   await page.goto(`http://127.0.0.1:${server.address().port}/download/windows`);
-  assert.ok((await page.content()).includes('Mouzi_0.2.0_x64-setup.exe'));
+  assert.ok((await page.content()).includes(`Mouzi_${version}_x64-setup.exe`));
   for (const locale of ['', '/pl', '/es', '/de', '/fr', '/it']) {
     await page.goto(`http://127.0.0.1:${server.address().port}${locale}/changelog`);
-    assert.ok((await page.content()).includes('0.2.0'), `Missing release in ${locale} changelog`);
+    assert.ok((await page.content()).includes(version), `Missing release in ${locale} changelog`);
+    assert.equal((await page.locator('article h2').first().textContent()).trim(), `v${version}`, `Latest release must appear first in ${locale} changelog`);
   }
   console.log(`PASS ${html.length} pages, ${checked} internal references, Pagefind results and all localized changelogs`);
 } finally {

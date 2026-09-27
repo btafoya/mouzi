@@ -5,7 +5,8 @@ import { getCollection, render } from 'astro:content';
 import { site } from '../config/site';
 
 const entries = (await getCollection('changelog')).sort(
-  (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
+  (a, b) => b.data.date.valueOf() - a.data.date.valueOf()
+    || b.data.version.localeCompare(a.data.version, 'en', { numeric: true }),
 );
 const rendered = await Promise.all(
   entries.map(async (e) => ({ entry: e, Content: (await render(e)).Content })),

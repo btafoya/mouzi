@@ -55,4 +55,15 @@ for (const lang of Object.keys(release020) as L[]) {
   data[lang].changelog.entries = { '0.2.0': release020[lang], ...data[lang].changelog.entries };
 }
 
+const release021: Record<L, { title: string; items: string[] }> = {
+  pl: { title: 'Pełne tłumaczenia nowych ekranów', items: ['Uzupełnione tłumaczenia kolejki zatwierdzania, warunków reguł, filtrów historii i komunikatów we wszystkich 11 językach.', 'Dodane brakujące hiszpańskie teksty importu archiwów.', 'Automatyczne sprawdzanie kluczy i znaczników tłumaczeń. Poprawka #67.', 'Aktualizacja z aplikacji zachowuje ustawienia, reguły i historię.'] },
+  es: { title: 'Traducciones completas de los nuevos controles', items: ['Cola de aprobación, condiciones de reglas, filtros de historial y mensajes traducidos a los 11 idiomas.', 'Añadidos los textos que faltaban en la importación de archivos en español.', 'Comprobaciones automáticas de claves y variables de traducción. Corrección de #67.', 'La actualización desde la aplicación conserva ajustes, reglas e historial.'] },
+  de: { title: 'Vollständige Übersetzungen der neuen Bedienelemente', items: ['Freigabewarteschlange, Regelbedingungen, Verlaufsfilter und Meldungen in allen 11 Sprachen.', 'Fehlende spanische Texte für den Archivimport ergänzt.', 'Automatische Prüfung der Übersetzungsschlüssel und Platzhalter. Behebt #67.', 'Das Update in der App erhält Einstellungen, Regeln und Verlauf.'] },
+  fr: { title: 'Traductions complètes des nouveaux contrôles', items: ['File de validation, conditions des règles, filtres et messages traduits dans les 11 langues.', 'Ajout des textes espagnols manquants pour l’import d’archives.', 'Vérification automatique des clés et variables de traduction. Correction de #67.', 'La mise à jour conserve les paramètres, les règles et l’historique.'] },
+  it: { title: 'Traduzioni complete dei nuovi controlli', items: ['Coda di approvazione, condizioni delle regole, filtri e messaggi tradotti in tutte le 11 lingue.', 'Aggiunti i testi spagnoli mancanti per l’importazione degli archivi.', 'Controlli automatici di chiavi e segnaposto delle traduzioni. Correzione di #67.', 'L’aggiornamento conserva impostazioni, regole e cronologia.'] },
+};
+for (const lang of Object.keys(release021) as L[]) {
+  data[lang].changelog.entries = { '0.2.1': release021[lang], ...data[lang].changelog.entries };
+}
+
 export const projectPageCopy=data;

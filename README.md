@@ -120,9 +120,9 @@ If you want to add a new language, open an issue first so we can confirm the lan
 
 | Installer | Size | Best For |
 |-----------|------|----------|
-| [`Mouzi_0.2.0_x64-setup.exe`](https://mouzi.cc/download) | ~4.8 MB | Regular users (auto-installer) |
-| [`Mouzi_0.2.0_x64_en-US.msi`](https://mouzi.cc/download) | ~6.8 MB | Enterprise / Active Directory |
-| [`Mouzi_0.2.0_x64-portable.exe`](https://mouzi.cc/download) | ~18.5 MB | Power users (no install) |
+| [`Mouzi_0.2.1_x64-setup.exe`](https://mouzi.cc/download) | ~4.8 MB | Regular users (auto-installer) |
+| [`Mouzi_0.2.1_x64_en-US.msi`](https://mouzi.cc/download) | ~6.8 MB | Enterprise / Active Directory |
+| [`Mouzi_0.2.1_x64-portable.exe`](https://mouzi.cc/download) | ~18.5 MB | Power users (no install) |
 
 > ⚠️ **Windows 10/11.** Requires the [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (pre-installed on most systems).
 
@@ -130,9 +130,9 @@ If you want to add a new language, open an issue first so we can confirm the lan
 
 | Package | Size | Best For |
 |---------|------|----------|
-| [`Mouzi_0.2.0_amd64.AppImage`](https://mouzi.cc/download/linux) | ~86.6 MB | Universal — works on most distros |
-| [`Mouzi_0.2.0_amd64.deb`](https://mouzi.cc/download/linux) | ~8.8 MB | Debian, Ubuntu, Mint, Pop!_OS |
-| [`Mouzi-0.2.0-1.x86_64.rpm`](https://mouzi.cc/download/linux) | ~8.8 MB | Fedora, openSUSE, RHEL |
+| [`Mouzi_0.2.1_amd64.AppImage`](https://mouzi.cc/download/linux) | ~86.6 MB | Universal — works on most distros |
+| [`Mouzi_0.2.1_amd64.deb`](https://mouzi.cc/download/linux) | ~8.8 MB | Debian, Ubuntu, Mint, Pop!_OS |
+| [`Mouzi-0.2.1-1.x86_64.rpm`](https://mouzi.cc/download/linux) | ~8.9 MB | Fedora, openSUSE, RHEL |
 
 > 🐧 **Linux requirements:** `libwebkit2gtk-4.1` and `libayatana-appindicator3`. Most modern distros have these pre-installed.
 
@@ -234,7 +234,9 @@ Output will be in `src-tauri/target/release/bundle/`.
 
 ---
 
-## 🆕 Mouzi 0.2.0
+## 🆕 Mouzi 0.2.1
+
+This patch completes the new interface translations in all 11 supported languages and adds missing Spanish archive-import text. The organization features include:
 
 - Preview matched rules and destinations, then approve selected operations.
 - Suggest mode and per-folder processing of only new files.
@@ -243,9 +245,9 @@ Output will be in `src-tauri/target/release/bundle/`.
 - Warnings for misleading executable filenames and optional **Add to Mouzi** in Windows Explorer.
 - Simplified Chinese, defensive extension-list validation and theme contrast fixes.
 
-Stable settings are preserved. Older History entries without verification records require manual restoration. New controls are translated into English and Polish, with English fallback elsewhere. Windows files remain unsigned with Authenticode; signed updater packages are separate.
+Stable settings are preserved. Older History entries without verification records require manual restoration. New controls are translated into all 11 supported interface languages. Windows files remain unsigned with Authenticode; signed updater packages are separate.
 
-[Full release notes](https://github.com/hsr88/mouzi/releases/tag/v0.2.0) · [Documentation](https://mouzi.cc/docs)
+[Full release notes](https://github.com/hsr88/mouzi/releases/tag/v0.2.1) · [Documentation](https://mouzi.cc/docs)
 
 ---
 

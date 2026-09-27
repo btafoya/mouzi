@@ -53,35 +53,35 @@ const it: Copy = {
 
 const release016Copy = {
   es: {
-    smartScreen: 'La versión 0.2.0 no está firmada con Authenticode mientras se prepara la firma de producción con SignPath Foundation. Descarga solo desde mouzi.cc o GitHub oficial.',
+    smartScreen: 'La versión 0.2.1 no está firmada con Authenticode mientras se prepara la firma de producción con SignPath Foundation. Descarga solo desde mouzi.cc o GitHub oficial.',
     quickToggle: 'Activa o desactiva una regla sin abrir el editor.',
     extensionless: 'Detecta por su contenido archivos reconocibles sin extensión y aplica las reglas existentes.',
     scheduled: ['Organización programada','Hasta cuatro ejecuciones automáticas al día o modo manual.'] as Pair,
     roadmap: ['Organización más segura, lotes selectivos y actualizaciones automáticas','Añade paquetes de actualización firmados, lotes de archivos seleccionados, acciones en la Papelera, normalización de extensiones, avisos personalizados, confirmación del historial y el término Organizar.'] as Pair,
   },
   pl: {
-    smartScreen: 'Wersja 0.2.0 nie jest podpisana Authenticode podczas przygotowania podpisu SignPath Foundation. Pobieraj tylko z mouzi.cc lub oficjalnego GitHuba.',
+    smartScreen: 'Wersja 0.2.1 nie jest podpisana Authenticode podczas przygotowania podpisu SignPath Foundation. Pobieraj tylko z mouzi.cc lub oficjalnego GitHuba.',
     quickToggle: 'Włączaj i wyłączaj regułę bez otwierania edytora.',
     extensionless: 'Rozpoznaje po zawartości pliki bez rozszerzeń i stosuje istniejące reguły.',
     scheduled: ['Organizacja według harmonogramu','Do czterech automatycznych uruchomień dziennie lub tryb ręczny.'] as Pair,
     roadmap: ['Bezpieczniejsza organizacja, wybrane partie i automatyczne aktualizacje','Dodaje podpisane pakiety aktualizacji, partie wybranych plików, działania przez Kosz, normalizację rozszerzeń, własne powiadomienia, potwierdzenie historii i nazewnictwo Organizuj.'] as Pair,
   },
   de: {
-    smartScreen: '0.2.0 ist noch nicht mit Authenticode signiert, während die SignPath-Produktionssignatur vorbereitet wird. Nur von mouzi.cc oder GitHub laden.',
+    smartScreen: '0.2.1 ist noch nicht mit Authenticode signiert, während die SignPath-Produktionssignatur vorbereitet wird. Nur von mouzi.cc oder GitHub laden.',
     quickToggle: 'Regeln ohne Öffnen des Editors ein- oder ausschalten.',
     extensionless: 'Erkennt bekannte Dateien ohne Endung am Inhalt und wendet vorhandene Regeln an.',
     scheduled: ['Geplante Organisation','Bis zu vier automatische Läufe täglich oder vollständig manuell.'] as Pair,
     roadmap: ['Sicherere Organisation, ausgewählte Stapel und automatische Updates','Bietet signierte Updatepakete, ausgewählte Dateistapel, Papierkorb-Aktionen, Endungsnormalisierung, eigene Benachrichtigungen, Verlaufsbestätigung und klare Organisieren-Bezeichnungen.'] as Pair,
   },
   fr: {
-    smartScreen: 'La 0.2.0 n’est pas signée avec Authenticode pendant la préparation SignPath. Téléchargez uniquement depuis mouzi.cc ou GitHub officiel.',
+    smartScreen: 'La 0.2.1 n’est pas signée avec Authenticode pendant la préparation SignPath. Téléchargez uniquement depuis mouzi.cc ou GitHub officiel.',
     quickToggle: 'Activez ou désactivez une règle sans ouvrir l’éditeur.',
     extensionless: 'Reconnaît le contenu des fichiers sans extension et applique les règles existantes.',
     scheduled: ['Organisation planifiée','Jusqu’à quatre passages automatiques par jour ou mode manuel.'] as Pair,
     roadmap: ['Organisation plus sûre, lots sélectionnés et mises à jour automatiques','Ajoute des paquets de mise à jour signés, des lots sélectionnés, la Corbeille, la normalisation des extensions, les notifications personnalisées, la confirmation de l’historique et le terme Organiser.'] as Pair,
   },
   it: {
-    smartScreen: 'La 0.2.0 non è firmata con Authenticode durante la preparazione SignPath. Scarica solo da mouzi.cc o GitHub ufficiale.',
+    smartScreen: 'La 0.2.1 non è firmata con Authenticode durante la preparazione SignPath. Scarica solo da mouzi.cc o GitHub ufficiale.',
     quickToggle: 'Attiva o disattiva una regola senza aprire l’editor.',
     extensionless: 'Riconosce dal contenuto i file senza estensione e applica le regole esistenti.',
     scheduled: ['Organizzazione programmata','Fino a quattro esecuzioni automatiche al giorno o modalità manuale.'] as Pair,
