@@ -46,6 +46,8 @@ Mouzi sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` on Linux to avoid a known WebKitGT
 
 Tray support still depends on the desktop environment. A missing tray host is separate from the Wayland rendering workaround.
 
+If Settings is gray or blank, collect terminal output and compare `GDK_BACKEND=x11 ./Mouzi_*.AppImage`. GPU-specific EGL issues can remain. Do not use `WEBKIT_DISABLE_COMPOSITING_MODE=1` as a general fix: it caused `EGL_BAD_PARAMETER` on the reported RDNA 4 / Mesa / Hyprland system. Include distribution, session and GPU information in a report.
+
 ## Data locations
 
 The SQLite database contains settings, rules, watched folders and history:
@@ -64,4 +66,4 @@ Archive imports use `$XDG_CACHE_HOME/mouzi/archive-imports`, normally `~/.cache/
 
 ## macOS
 
-macOS is not an officially supported platform and no public macOS download is offered. Occasional private builds are used only for testing with volunteer users.
+macOS is not officially supported. Experimental builds are tracked in [issue #46](https://github.com/hsr88/mouzi/issues/46), outside the official Windows/Linux release.

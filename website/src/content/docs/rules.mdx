@@ -4,7 +4,7 @@ description: Match files by extension and regular expression, set priorities and
 section: Rules
 order: 1
 platforms: [windows, linux]
-updated: 2026-08-27
+updated: 2026-09-27
 ---
 
 A rule combines an extension condition, an optional regular expression and a destination. Mouzi checks enabled rules from the lowest priority number to the highest and uses the first match.
@@ -24,6 +24,8 @@ Extension matching is case-insensitive, so `Report.PDF` matches `pdf`. The speci
 
 Mouzi 0.1.6 also inspects recognizable files without a filename extension. PNG, JPEG, PDF, ZIP and other formats reported by their file signature use that detected type when matching rules. PE, ELF and Mach-O executables are routed through the existing `exe` rule category. The filename itself is not changed merely because a type was detected.
 
+Empty comma-separated entries are discarded. For example, `exe, msi,` is saved as `exe,msi`. An empty entry never matches an unrecognized extensionless file; use `*` for an explicit catch-all.
+
 ## File-name patterns
 
 The optional **Pattern** field is a Rust regular expression matched against the complete file name, including its extension. There is no separate plain-text “contains” mode.
@@ -40,7 +42,17 @@ Patterns are case-sensitive unless you add `(?i)`:
 (?i)^invoice[-_ ].*\.pdf$
 ```
 
-When both extensions and a pattern are present, both must match. An invalid regular expression will not match files, so test a new rule in Manual mode first.
+When both extensions and a pattern are present, both must match. Invalid patterns are rejected by the editor and storage boundary. Test a new rule with an organization preview first.
+
+## Size and modification dates
+
+Set minimum/maximum size in whole bytes and an inclusive modification-date range. Dates use UTC and cover the full selected day. Extensions, patterns and additional conditions combine with **AND**. Leave a field empty for no limit. Creation dates are not used.
+
+## Rename only
+
+Choose **Rename only** to keep the file in its current folder. Templates support `{stem}`, `{filename}`, `{extension}`, `{year}`, `{month}` and `{day}`; dates use the organization day in UTC. For example, `{stem}-{year}.{extension}` adds the year without moving the file.
+
+Invalid path characters, traversal, unsupported placeholders and reserved names are rejected. Collisions receive a numeric suffix. New rename operations can be undone from History.
 
 ## Priority and first match
 
@@ -64,7 +76,7 @@ Relative destinations such as `Documents/PDF` are created inside the source watc
 
 The folder button beside **Destination** stores a relative path when you pick a folder inside the watched folder and an absolute path when you pick one elsewhere.
 
-Mouzi creates missing destination folders. If a file with the same name already exists, it keeps the existing file and adds a Unix timestamp to the file being moved.
+Mouzi creates missing destination folders. If a file with the same name already exists, it keeps the existing file and adds a numeric suffix to the planned name. A conflict appearing after preview is reported so you can refresh the plan.
 
 See [dynamic paths](/docs/dynamic-paths) for destination placeholders.
 

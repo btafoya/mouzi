@@ -4,7 +4,7 @@ description: Diagnose files that did not move, unexpected rule matches, missing 
 section: Reference
 order: 1
 platforms: [windows, linux]
-updated: 2026-08-27
+updated: 2026-09-27
 ---
 
 ## A file did not move
@@ -29,7 +29,7 @@ Relative destinations are created inside the source watched folder. Placeholders
 
 ## Undo failed
 
-Undo needs the destination file to remain at the recorded path and the original location to be available. Current releases may also fail to restore a move across file-system volumes. Move the file back manually if necessary, then verify the result before clearing history.
+Undo needs an unchanged file at its recorded destination and a free, writable original path. Older records without verification data require manual restoration. Check the per-file error and both locations before moving a file manually or clearing History.
 
 ## Mouzi organized old files immediately
 
@@ -37,7 +37,7 @@ Starting a folder in Silent mode scans existing top-level files as well as watch
 
 ## Windows says the app is unrecognized
 
-Public version 0.1.6 is unsigned with Authenticode and can trigger SmartScreen. Verify that the file came from [the official download page](/download/windows). Read [Mouzi on Windows](/docs/windows) before choosing **Run anyway**.
+Public version 0.2.0 is unsigned with Authenticode and can trigger SmartScreen. Verify that the file came from [the official download page](/download/windows). Read [Mouzi on Windows](/docs/windows) before choosing **Run anyway**.
 
 ## The Linux tray icon is missing
 

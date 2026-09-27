@@ -41,4 +41,18 @@ for (const lang of Object.keys(release016) as L[]) {
   data[lang].changelog.entries['0.1.6'] = release016[lang];
 }
 
+const release020: Record<L, { title: string; items: string[] }> = {
+  pl: { title: 'Podgląd organizacji, rozbudowane reguły i bezpieczne cofanie', items: ['Podgląd plików, reguł i miejsc docelowych przed zatwierdzeniem.', 'Tryb Proponuj i przetwarzanie tylko nowych plików.', 'Warunki rozmiaru i daty modyfikacji oraz szablony zmiany nazwy.', 'Filtry historii, sesje i cofanie wybranych operacji.', 'Ostrzeżenia o mylących nazwach oraz Add to Mouzi w Eksploratorze.', 'Chiński uproszczony, walidacja i poprawiony kontrast. Nowe kontrolki mają tłumaczenia PL/EN.', 'Starsza historia bez danych weryfikacyjnych wymaga ręcznego przywracania. Windows nadal bez Authenticode.'] },
+  es: { title: 'Vista previa, reglas ampliadas y deshacer verificado', items: ['Revisa archivos, reglas y destinos antes de confirmar.', 'Modo Sugerir y procesamiento de archivos nuevos.', 'Condiciones de tamaño y fecha; plantillas para renombrar.', 'Filtros de historial y restauración de operaciones seleccionadas.', 'Avisos de nombres engañosos e integración con el Explorador.', 'Chino simplificado, validación y contraste corregido. Controles nuevos en inglés o polaco.', 'Historial antiguo sin verificación: restauración manual. Windows sin Authenticode.'] },
+  de: { title: 'Vorschau, erweiterte Regeln und geprüftes Rückgängigmachen', items: ['Dateien, Regeln und Ziele vor Bestätigung prüfen.', 'Vorschlagsmodus und Verarbeitung nur neuer Dateien.', 'Größen- und Datumsbedingungen sowie Namensvorlagen.', 'Verlaufsfilter und Wiederherstellung ausgewählter Vorgänge.', 'Warnungen bei irreführenden Namen und Explorer-Integration.', 'Vereinfachtes Chinesisch, Validierung und Kontrastkorrektur. Neue Bedienelemente auf Englisch oder Polnisch.', 'Alte Einträge ohne Prüfdaten manuell wiederherstellen. Windows ohne Authenticode.'] },
+  fr: { title: 'Aperçu, règles étendues et restauration vérifiée', items: ['Vérifiez fichiers, règles et destinations avant confirmation.', 'Mode Suggestion et traitement des nouveaux fichiers.', 'Conditions de taille et date ; modèles de renommage.', 'Filtres et restauration des opérations sélectionnées.', 'Avertissements pour noms trompeurs et intégration à l’Explorateur.', 'Chinois simplifié, validation et contraste corrigé. Nouveaux contrôles en anglais ou polonais.', 'Ancien historique sans vérification : restauration manuelle. Windows sans Authenticode.'] },
+  it: { title: 'Anteprima, regole estese e ripristino verificato', items: ['Controlla file, regole e destinazioni prima di confermare.', 'Modalità Suggerisci e gestione dei file nuovi.', 'Condizioni di dimensione e data; modelli per rinominare.', 'Filtri e ripristino delle operazioni selezionate.', 'Avvisi sui nomi ingannevoli e integrazione con Esplora file.', 'Cinese semplificato, validazione e contrasto corretto. Nuovi controlli in inglese o polacco.', 'Vecchie voci senza verifica: ripristino manuale. Windows senza Authenticode.'] },
+};
+for (const lang of Object.keys(release020) as L[]) {
+  for (const page of ['sponsors', 'impact'] as const) {
+    data[lang][page] = JSON.parse(JSON.stringify(data[lang][page]).replace(/\b10 (idiomas|języków|Sprachen|langues|lingue)\b/g, '11 $1'));
+  }
+  data[lang].changelog.entries = { '0.2.0': release020[lang], ...data[lang].changelog.entries };
+}
+
 export const projectPageCopy=data;

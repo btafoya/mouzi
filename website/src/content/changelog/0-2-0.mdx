@@ -1,0 +1,22 @@
+---
+version: 0.2.0
+date: 2026-09-27
+title: Review before organizing, richer rules and safer undo
+---
+
+- Preview files, matched rules and destination paths before applying selected operations.
+- Use **Suggest** mode to collect files for approval, or enable **Process only new files** to skip an existing backlog.
+- Combine extensions and filename patterns with file-size and modification-date conditions.
+- Rename files in place with naming templates and collision protection.
+- Group History by organization run; filter by filename, rule, extension and local date range, then undo selected files or runs with per-file results.
+- Leave misleading executable filenames such as `invoice.pdf.exe` for review. Suspicious names and Trash actions start unchecked in the preview.
+- Optionally add **Add to Mouzi** to the Windows Explorer folder menu.
+- Add Simplified Chinese. New controls are translated into English and Polish, with English fallback in other languages.
+- Normalize comma-separated extension lists defensively and validate rules before saving or importing.
+- Fix warning/error contrast when Mouzi's selected theme differs from the system theme.
+
+Stable settings and watched folders are preserved. Private beta profiles stay separate. Older History entries remain visible, but entries without verification records require manual restoration. Recycle Bin/Trash restoration is handled by the operating system.
+
+Windows files remain unsigned with Authenticode; updater integrity signatures are separate. Linux keeps the AppImage link repair and AppManager verification. macOS is still unofficial and experimental. Recursive watching, OCR, screenshot cleanup and Flatpak are not included.
+
+Read [organization preview](/docs/organization-preview), [rules](/docs/rules) and [History and undo](/docs/history-and-undo) for behavior and limits.

@@ -1,47 +1,34 @@
 ---
 title: History and undo
-description: Review recent moves, restore files and understand what clearing history does.
+description: Search organization runs, review selected undo operations and understand restoration limits.
 section: Start here
-order: 3
+order: 4
 platforms: [windows, linux]
-updated: 2026-08-27
+updated: 2026-09-27
 ---
 
-Every successful rule move is recorded in the local `mouzi.db` database with its original path, destination, rule and time.
+Successful operations are recorded locally with paths, rule, time and organization run. History is not synchronized between computers.
 
-![Mouzi recent actions showing destination folders and one-click undo buttons](/screenshots/history-undo.png)
+## Find and undo operations
 
-## History views
+Open **Settings → History**. Filter by filename, rule, extension or a date/time range in your local timezone. Use **Show more** to display additional results. Runs identify manual organization, approved previews, automatic watching, scheduling or archive import.
 
-The full History view loads the 50 most recent records. The tray popup shows the latest five. Weekly statistics count successful, non-undone moves from the previous seven days.
+Select entries or **Select this run**, choose **Review undo**, then confirm. Each file receives its own result. Pause the watched folder first if you are investigating an unexpected organization run.
 
-History is local to the current user profile and is not synchronized between computers.
+Mouzi skips restoration when the original path is occupied, the organized file changed, or the file is unavailable. It never overwrites an existing source file. Restored files are protected from immediate automatic reorganization until their contents change; you can still explicitly select them in a preview.
 
-## Undo one move
+An undo batch cannot recreate missing files. Restore skipped files manually after checking both locations.
 
-Choose **Undo** on an entry while the moved file still exists at its recorded destination. Mouzi attempts to restore the original path and marks the history item as undone.
+## History from older versions
 
-Undo cannot reliably restore a file when:
+Older entries remain under **Earlier history**. They lack the verification records used by 0.2.0, so Mouzi cannot safely undo them. Restore those files manually. New move and rename records support verified undo.
 
-- the destination file was renamed, moved or deleted
-- the original folder is unavailable or no longer writable
-- restoring it crosses file-system volumes in a current release
-- another file now occupies the original path
+## Recycle Bin and Trash
 
-If Undo fails, move the file manually and verify both locations.
+Trash actions are recorded, but restoration is handled through the system Recycle Bin/Trash. They are not eligible for Mouzi undo.
 
-## Undo all
+## Clear or back up history
 
-**Undo all** attempts to restore the recent non-undone entries. It is not a database rollback and cannot recreate missing files. After a large unexpected organization run, pause the watched folder first, then undo and inspect the result before changing rules.
+Clearing History asks for confirmation, then removes the records and the ability to undo those operations in Mouzi. It does not move, restore or delete the files themselves.
 
-## Clear history
-
-Clearing history first asks for confirmation, then deletes log and statistics records from the database. It does not delete, move or restore files, and it cannot be reversed from within Mouzi.
-
-Actions that send files to the operating system Recycle Bin or Trash are recorded, but Mouzi does not show Undo for them. Restore those files using the operating system.
-
-## Back up history
-
-Close Mouzi and copy `mouzi.db`. The same database also contains settings, rules and watched folders, so treat it as private user data. Platform paths are listed under [Settings and local data](/docs/settings-and-data).
-
-History search and date/type filters are planned but are not available in the current public release.
+To back up History, quit Mouzi and copy `mouzi.db`. It also contains settings, rules and watched folders. See [Settings and local data](/docs/settings-and-data) for paths.

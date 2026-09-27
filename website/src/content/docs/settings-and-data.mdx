@@ -4,7 +4,7 @@ description: Reference for language, theme, startup, safety settings, storage pa
 section: Reference
 order: 2
 platforms: [windows, linux]
-updated: 2026-08-27
+updated: 2026-09-27
 ---
 
 Mouzi stores configuration and history locally in one SQLite database. There is no account or cloud synchronization.
@@ -13,7 +13,7 @@ Mouzi stores configuration and history locally in one SQLite database. There is 
 
 | Setting | Behavior |
 | --- | --- |
-| Language | Choose English, Polish, Italian, German, French, Russian, Japanese, Vietnamese, Spanish or Ukrainian |
+| Language | Choose English, Polish, Italian, German, French, Russian, Japanese, Vietnamese, Spanish, Ukrainian or Simplified Chinese |
 | Theme | Follow the system, use light or use dark |
 | Start with system | Launch Mouzi after the current user signs in; enabled on first run |
 | Grace period | Delay Silent-mode processing from 0 seconds to 7 days; default 5 minutes |
@@ -21,6 +21,10 @@ Mouzi stores configuration and history locally in one SQLite database. There is 
 | Automatic update checks | Check the signed public updater feed and offer one-click installation; enabled by default |
 
 Changing the grace period affects newly queued work. Organize now and scheduled runs bypass the delay.
+
+New 0.2.0 controls are translated into English and Polish. Other selected languages use English for those new strings.
+
+On Windows, **Add to Mouzi in Windows Explorer** enables a folder context-menu entry. It opens the add-folder form for confirmation. In Windows 11 use **Show more options**. Disable integration before moving or deleting the portable executable.
 
 ## Local database
 
@@ -53,6 +57,10 @@ The usual Linux default is `~/.local/share/mouzi/mouzi.db`.
 
 The database contains full local paths and file names from History. Do not attach it to a public issue unless you have inspected and sanitized it.
 
+## Upgrading from stable or private beta
+
+Stable 0.2.0 reuses the existing stable database and preserves settings, rules and watched folders. Private beta profiles are separate and are not imported automatically. Older History remains visible, but entries without verification records require manual restoration. Back up the database before upgrading if you need a restorable copy.
+
 ## Reset the application
 
 Quit Mouzi and remove or rename `mouzi.db`. The next launch creates fresh defaults, including the Downloads folder, starter rules and enabled autostart.
@@ -61,6 +69,6 @@ Resetting the database does not delete organized files and does not undo earlier
 
 ## Updates
 
-Mouzi 0.1.6 can check the official GitHub updater feed and install a newer release after you confirm. Checks can be disabled under **Settings → General**. The About screen also provides a manual check.
+Mouzi can check the official GitHub updater feed and install a newer release after you confirm. Checks can be disabled under **Settings → General**. The About screen also provides a manual check.
 
 Updater packages carry a Tauri updater signature verified against a public key embedded in Mouzi. This integrity signature is separate from Windows Authenticode code signing.

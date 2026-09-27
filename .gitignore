@@ -50,3 +50,5 @@ scratch_*
 # Local Codex project notes
 /AGENTS.md
 .kimi/
+
+.vercel

@@ -40,7 +40,7 @@ const features = [
   },
   {
     title: 'Custom rules, in your words',
-    body: 'Match files by extension and optionally narrow the match with a regular expression applied to the full file name. Destinations can use placeholders such as {year} and {month} to create dated folders.',
+    body: 'Combine extensions, filename patterns, file size and modification dates. Preview destinations before approving moves, or rename files in place with templates.',
     href: '/features/custom-rules',
     img: '/screenshots/custom-rules.png',
     alt: 'Mouzi rules view listing image, document, archive, installer, music and video rules',
@@ -48,8 +48,8 @@ const features = [
     height: 700,
   },
   {
-    title: 'History and one-click undo',
-    body: 'Every successful move is recorded in a local SQLite database. If a rule sends a file somewhere unexpected, open History and undo that entry.',
+    title: 'History and verified undo',
+    body: 'Search local history by filename, rule, extension or date. Review selected files or organization runs before undoing them; changed files and occupied source paths are skipped.',
     href: '/docs/history-and-undo',
     img: '/screenshots/history-undo.png',
     alt: 'Mouzi recent actions showing organized files, destinations and undo buttons',
@@ -425,16 +425,16 @@ const contributions = [
         {
           [
             {
-              phase: 'Now',
-              items: ['Folder picker in the rule editor', 'Tooltips and accessibility labels', 'Quick enable/disable on every rule row'],
+              phase: 'Shipped in 0.2.0',
+              items: ['Organization preview and Suggest mode', 'History filters and selected-run undo', 'Size/date conditions and rename templates'],
             },
             {
               phase: 'Next',
-              items: ['History search and filters', 'AppImage icon fix for AppManager installs', 'Signed Windows releases via SignPath'],
+              items: ['Signed Windows releases via SignPath', 'Further platform compatibility testing', 'Translation coverage for new controls'],
             },
             {
               phase: 'Later',
-              items: ['Recursive folder watching with loop protection', 'Rules based on file size and dates', 'More Linux packaging formats'],
+              items: ['Recursive folder watching with loop protection', 'More Linux packaging formats', 'Additional rule improvements'],
             },
           ].map((col) => (
             <div class="rounded-card border border-line bg-surface p-5">

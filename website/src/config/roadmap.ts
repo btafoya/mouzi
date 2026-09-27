@@ -41,8 +41,9 @@ export const roadmap: RoadmapItem[] = [
   // Next
   {
     title: 'History search and filters',
-    description: 'Filter history by file name, rule, type and date.',
-    status: 'next',
+    description: 'Filter by filename, rule, extension and date; review selected runs before undo.',
+    status: 'shipped',
+    target: 'v0.2.0',
     issue: `${ISSUES}/52`,
   },
   {
@@ -68,8 +69,9 @@ export const roadmap: RoadmapItem[] = [
   },
   {
     title: 'Size and date rule conditions',
-    description: 'Rules based on file size and modification date. Creation date needs a cross-platform reliability review first.',
-    status: 'later',
+    description: 'Combine file-size and UTC modification-date limits with extension and filename conditions.',
+    status: 'shipped',
+    target: 'v0.2.0',
     issue: `${ISSUES}/52`,
   },
   {
@@ -105,5 +107,11 @@ export const roadmap: RoadmapItem[] = [
       'Adds signed in-app updater packages, selected-file batches, Recycle Bin actions, extension normalization, custom notifications, history confirmation and clearer Organize wording.',
     status: 'shipped',
     target: 'v0.1.6',
+  },
+  {
+    title: 'Preview, Suggest mode and rename templates',
+    description: 'Approve selected operations, process only new files, rename in place and review misleading executable filenames. Optional Windows Explorer folder integration.',
+    status: 'shipped',
+    target: 'v0.2.0',
   },
 ];

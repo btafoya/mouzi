@@ -27,11 +27,12 @@ import { breadcrumbLd } from '../../lib/seo';
         bottom. The first matching rule decides the destination. If no rule matches, the file stays put.
       </p>
 
-      <h2>Three modes</h2>
+      <h2>Four modes</h2>
       <p>
         <strong>Silent</strong> organizes continuously in the background. <strong>Manual</strong> waits until you click
-        Organize Now, which suits people who prefer batch organization. <strong>Paused</strong> stops watching entirely. You
-        switch modes from the tray menu, and you can also schedule organization at up to four fixed times per day.
+        Organize and review the selected operations. <strong>Suggest</strong> collects arrivals for approval in the review queue.
+        <strong>Paused</strong> stops watching entirely. Set each folder's mode in Settings. Scheduled organization runs
+        up to four times per day and processes Silent folders only.
       </p>
 
       <h2>Safe with live downloads</h2>
@@ -45,7 +46,8 @@ import { breadcrumbLd } from '../../lib/seo';
       <h2>History and undo</h2>
       <p>
         Each successful move is written to a local SQLite history. Open History from the main window to see what moved,
-        where and which rule fired. An entry can be undone while the file still exists at the recorded destination.
+        where and which rule fired. Select files or organization runs for verified undo. Changed files, occupied source
+        paths and older entries without verification records are skipped.
         Details are in the{' '}
         <a href="/docs/getting-started">getting started guide</a>.
       </p>

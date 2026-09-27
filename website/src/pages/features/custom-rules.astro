@@ -28,7 +28,7 @@ import { breadcrumbLd } from '../../lib/seo';
       <h2>Match the way you think</h2>
       <p>
         Most rules match extensions: PDFs to Documents, images to Images, archives to Archives. When extensions are not
-        enough, match on the file name, or switch the rule to regex mode and match exactly what you mean, like every
+        enough, add a regular expression for the filename and combine it with size or modification-date limits, like every
         file starting with <code>Screenshot</code> or every invoice with a number in its name.
       </p>
 
@@ -42,9 +42,12 @@ import { breadcrumbLd } from '../../lib/seo';
 
       <h2>Priority and quick toggles</h2>
       <p>
-        Rules run in list order and the first match wins, so specific rules sit above general ones. Every rule row has
+        Rules run from the lowest numeric priority to the highest and the first match wins, so specific rules sit above general ones. Every rule row has
         an enable toggle, letting you pause one behavior without deleting anything.
       </p>
+
+      <h2>Preview and rename</h2>
+      <p>Review matched rules and destinations before approving a batch. Rename only keeps a file in its folder and applies a naming template, with collision protection and verified undo.</p>
 
       <h2>Exclusions</h2>
       <p>

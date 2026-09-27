@@ -234,7 +234,20 @@ Output will be in `src-tauri/target/release/bundle/`.
 
 ---
 
-## 🆕 Mouzi 0.1.6
+## 🆕 Mouzi 0.2.0
+
+- Preview matched rules and destinations, then approve selected operations.
+- Suggest mode and per-folder processing of only new files.
+- File-size and modification-date conditions; rename-only templates.
+- History filters, organization runs and verified undo of selected files or runs.
+- Warnings for misleading executable filenames and optional **Add to Mouzi** in Windows Explorer.
+- Simplified Chinese, defensive extension-list validation and theme contrast fixes.
+
+Stable settings are preserved. Older History entries without verification records require manual restoration. New controls are translated into English and Polish, with English fallback elsewhere. Windows files remain unsigned with Authenticode; signed updater packages are separate.
+
+[Full release notes](https://github.com/hsr88/mouzi/releases/tag/v0.2.0) · [Documentation](https://mouzi.cc/docs)
+
+## Mouzi 0.1.6
 
 ### Release highlights
 - Secure in-app update checks and one-click installation through the Tauri updater.
@@ -256,10 +269,7 @@ MVP with default rules, multi-language support, dark mode, history & undo, start
 
 ### Upcoming
 
-- [ ] Suggest mode (modal confirmation per file)
-- [ ] Better error messages for invalid rules / input
 - [ ] Optional screenshot cleanup: move screenshots older than a chosen number of days from system and custom screenshot folders to the Recycle Bin
-- [ ] Windows Explorer context menu ("Add to Mouzi")
 - [ ] npm wrapper (`npm install -g mouzi`) for cross-platform CLI install
 - [ ] Local AI tagging (ONNX runtime for content classification)
 - [ ] Rule learning from user manual moves

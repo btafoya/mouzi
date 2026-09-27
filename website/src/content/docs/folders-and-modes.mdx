@@ -1,10 +1,10 @@
 ---
 title: Watched folders and modes
-description: Add several folders, choose Silent, Manual or Paused behavior and understand Organize now.
+description: Add several folders, choose Silent, Manual, Suggest or Paused behavior and understand Organize now.
 section: Start here
 order: 2
 platforms: [windows, linux]
-updated: 2026-08-27
+updated: 2026-09-27
 ---
 
 Mouzi can watch several folders at once. It processes files directly inside each selected folder; recursive watching of nested subfolders is not available.
@@ -27,10 +27,11 @@ Each watched folder has its own mode:
 | Mode | Watches new files | Organizes automatically | Included in Organize now |
 | --- | --- | --- | --- |
 | Silent | Yes | Yes, after the grace period | Yes |
-| Manual | Yes | No | Yes |
+| Manual | Yes | No | Preview and approval |
+| Suggest | Yes | No | Preview and approval |
 | Paused | No | No | No |
 
-Manual mode collects arrivals and leaves them in place until you choose **Organize now**. In the popup you can select only some waiting files and run the rules for that batch. Switching a Manual folder to Silent sends its pending files to the automatic queue using the current grace period.
+Manual and Suggest modes collect arrivals and leave them in place until you review and approve operations. In the popup, select waiting files and open the preview. Suggest mode keeps arrivals in the approval queue, including when a schedule runs. Switching a Manual folder to Silent sends its pending files to the automatic queue using the current grace period.
 
 ## Existing files
 
@@ -46,9 +47,13 @@ For a folder you have not tested:
 
 ## Organize now
 
-Organize now scans every active Silent and Manual folder. It ignores Paused folders and does not scan nested directories.
+Organize opens a preview for active folders or selected waiting files. Inspect matched rules and destinations, then approve the operations you want. It ignores Paused folders and does not scan nested directories. See [Preview and approve organization](/docs/organization-preview).
 
 It bypasses the grace period, so do not run it while a browser or another application is still writing a download. Built-in exclusions, `.mouziignore` and file-lock checking still apply.
+
+## Process only new files
+
+Enable this per folder to record the filenames currently present and skip them. The baseline survives restarts. Modifying a file under an existing name does not make it new. Disabling the option includes the backlog; enabling it again records a fresh baseline. Resetting the database removes the baseline and watched-folder configuration.
 
 ## Remove versus pause
 

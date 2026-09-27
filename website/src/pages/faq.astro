@@ -14,7 +14,7 @@ const faqs = [
   },
   {
     q: 'What happens if a rule moves a file I needed in Downloads?',
-    a: 'Open History and click undo on that entry. Mouzi records successful moves and can move the file back when it still exists at the recorded destination. Then adjust the rule, or add the file to .mouziignore.',
+    a: 'Open History, select the entry and review undo. Mouzi restores verified, unchanged files when the original path is free. Older entries without verification data need manual restoration. Then adjust the rule or add an exclusion.',
   },
   {
     q: 'Will Mouzi move a file that is still downloading?',
@@ -22,7 +22,7 @@ const faqs = [
   },
   {
     q: 'Why does Windows SmartScreen warn about the installer?',
-    a: 'Public version 0.1.6 is unsigned with Authenticode while production signing through SignPath Foundation is being prepared for a future release. Windows may therefore show an unknown-publisher warning. Download Mouzi only from mouzi.cc or the official GitHub release, and check the security guide before running it.',
+    a: 'Public version 0.2.0 is unsigned with Authenticode while production signing through SignPath Foundation is being prepared for a future release. Windows may therefore show an unknown-publisher warning. Download Mouzi only from mouzi.cc or the official GitHub release, and check the security guide before running it.',
   },
   {
     q: 'Which platforms are supported?',
@@ -30,7 +30,7 @@ const faqs = [
   },
   {
     q: 'Can I watch folders other than Downloads?',
-    a: 'Yes. Any folder can be watched, and you can watch several at once, each with its own rules.',
+    a: 'Yes. You can watch several folders with separate processing modes. Rules are shared; relative destinations resolve inside each source folder.',
   },
   {
     q: 'Does Mouzi work with OneDrive / Google Drive folders?',
@@ -38,7 +38,7 @@ const faqs = [
   },
   {
     q: 'How do I completely remove Mouzi?',
-    a: 'Uninstall the app, then delete the configuration folder: %APPDATA%\\Mouzi on Windows or ~/.config/mouzi on Linux. That removes all rules and history. The portable build only needs its file deleted.',
+    a: 'Quit Mouzi, uninstall it (or delete the portable executable), and remove its database only if you also want to reset settings and history. See Settings and local data for platform paths. Removing the database does not undo organized files.',
   },
   {
     q: 'How can I contribute?',

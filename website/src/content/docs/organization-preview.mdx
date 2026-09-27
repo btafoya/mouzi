@@ -1,0 +1,33 @@
+---
+title: Preview and approve organization
+description: Review matched rules and destination paths, select operations and approve files waiting in Suggest mode.
+section: Start here
+order: 3
+platforms: [windows, linux]
+updated: 2026-09-27
+---
+
+Mouzi 0.2.0 lets you inspect an organization plan before any file changes. Open **Review queue** or choose **Organize** for waiting files in the popup.
+
+1. Inspect each source file, matched rule and destination.
+2. Select the operations you want. Entries with errors cannot be selected.
+3. Choose **Review selected operations**.
+4. Confirm with **Apply operations**, or cancel to leave the files unchanged.
+
+Results are shown individually. A failed operation does not hide successful results for other files.
+
+## Changed files and expired previews
+
+A preview lasts 30 minutes and can be applied once. Refresh it after changing files, rules or folder settings. Execution checks the planned operation again; changed files or destination conflicts are rejected instead of silently using a different plan.
+
+## Misleading executable filenames
+
+Names such as `invoice.pdf.exe` produce a local warning and are held for review during automatic processing. These entries start unchecked. This check examines the filename; it does not scan for malware or quarantine files.
+
+## Trash operations
+
+Trash actions also start unchecked. If approved, they send files to the system Recycle Bin/Trash. Restore them there, not through Mouzi's History undo.
+
+## Suggest mode
+
+Choose **Suggest** for a watched folder to collect arrivals for approval. Scheduling does not move these files behind the review queue. **Silent** mode still organizes eligible files automatically; selecting Suggest is an explicit per-folder choice.
