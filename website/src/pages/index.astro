@@ -6,6 +6,7 @@ import OrganizeDemo from '../components/OrganizeDemo';
 import RuleDemo from '../components/RuleDemo.astro';
 import PrivacyDiagram from '../components/PrivacyDiagram.astro';
 import DownloadCards from '../components/DownloadCards.astro';
+import DonationPanel from '../components/DonationPanel.astro';
 import { site, signingMessage } from '../config/site';
 import { getRepoStats, formatCount } from '../lib/github';
 import { softwareApplicationLd, websiteLd } from '../lib/seo';
@@ -381,6 +382,7 @@ const contributions = [
           <a href="/download/linux" class="mt-4 inline-block text-sm text-amber hover:underline">Linux install guide →</a>
         </div>
       </div>
+      <DonationPanel />
     </div>
   </section>
 

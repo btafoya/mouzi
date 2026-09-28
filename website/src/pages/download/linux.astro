@@ -2,6 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
 import DownloadCards from '../../components/DownloadCards.astro';
+import DonationPanel from '../../components/DonationPanel.astro';
 import { site } from '../../config/site';
 import { softwareApplicationLd, breadcrumbLd } from '../../lib/seo';
 ---
@@ -21,6 +22,8 @@ import { softwareApplicationLd, breadcrumbLd } from '../../lib/seo';
     <div class="mt-10">
       <DownloadCards platform="linux" />
     </div>
+
+    <DonationPanel />
 
     <section class="prose mt-14">
       <h2>AppImage</h2>

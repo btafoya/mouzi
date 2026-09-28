@@ -1,0 +1,27 @@
+---
+import { Image } from 'astro:assets';
+import mouse from '../assets/mouzi-coffee.png';
+import { site } from '../config/site';
+import { localeFromPath } from '../i18n';
+import { donationCopy } from '../i18n/donation';
+
+const t = donationCopy[localeFromPath(Astro.url.pathname)];
+---
+
+<section data-donation-panel aria-labelledby="donation-title" class="mt-10 rounded-card border border-line bg-surface p-6 sm:p-8">
+  <div class="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between xl:gap-8">
+    <div class="min-w-0 max-w-2xl">
+      <p class="font-mono text-xs tracking-[.18em] text-amber uppercase">{t.eyebrow}</p>
+      <h2 id="donation-title" class="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h2>
+      <p class="mt-3 text-base leading-relaxed text-muted">{t.body}</p>
+      <p class="mt-3 text-sm text-muted">{t.note}</p>
+    </div>
+    <div class="flex flex-col items-center gap-4 sm:flex-row xl:shrink-0">
+      <Image src={mouse} alt="" width={128} densities={[1, 2]} format="webp" class="h-28 w-28 shrink-0 object-contain" loading="lazy" />
+      <a href={site.funding.kofi} class="inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-btn bg-[#f4b23a] px-5 py-3 text-center text-sm font-semibold text-[#151004] transition-colors hover:bg-[#ffc45a] sm:w-auto">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M4 5h12v11a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V5Z"/><path d="M16 7h2a3 3 0 1 1 0 6h-2M4 9h12"/></svg>
+        {t.button}
+      </a>
+    </div>
+  </div>
+</section>
