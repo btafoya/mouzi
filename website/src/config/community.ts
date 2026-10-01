@@ -196,6 +196,12 @@ export const communityReachNote =
 /** Independent articles and guides shown as a compact secondary list. */
 export const independentCoverage: IndependentCoverageLink[] = [
   {
+    outlet: 'Techwok.hu',
+    title: 'Mouzi: ingyenes program ami végre rendet rak a Letöltések mappában (is)',
+    url: 'https://techwok.hu/2026/10/01/mouzi-ingyenes-program-ami-vegre-rendet-rak-a-letoltesek-mappaban-is/',
+    language: 'Hungarian',
+  },
+  {
     outlet: 'AskWoody',
     title: 'Mouzi — Because your Downloads folder is a mess',
     url: 'https://www.askwoody.com/forums/topic/mouzi-because-your-downloads-folder-is-a-mess/',
