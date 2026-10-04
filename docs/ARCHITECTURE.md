@@ -117,3 +117,13 @@ Per-folder file, one pattern per line. Supports `#` comments (`\#` escapes), lit
 - Rust: unit tests inline in `ignore.rs`, `archive.rs`, `rules.rs`, `db.rs` (migrations); integration-style `beta_tests.rs`. Run `cargo test` in `src-tauri/`.
 - JS: `bun run test` → `node --test tests/*.test.mjs` (locale parity etc.).
 - CodeGraph flags `FolderWatcher` and `PendingFile` as having no covering tests.
+
+## Linux TUI + daemon (`linux/`)
+
+Separate Cargo workspace (the GUI build and its CI paths are untouched).
+
+- `mouzi-core` includes `archive`, `db`, `i18n`, `ignore`, `operations`, `rules` **by path from `src-tauri/src`**: one source of truth, no Tauri dependency.
+- `mouzi-linux` builds one binary, `mouzi`: no args = TUI, `mouzi daemon` = background organizer.
+- Multi-process safety lives in `operations.rs`: `OPERATION_LOCK` is an `OpLock` (in-process mutex, plus a file lock once `enable_multi_process(dir)` is called), and `enable_multi_process` also turns on WAL + `busy_timeout`. The GUI never calls it, so its behavior is unchanged.
+- No IPC: the daemon polls `PRAGMA data_version` and reloads when the TUI commits. Design and decisions: `docs/DESIGN-linux-port.md`.
+- Tests: `cd linux && cargo test --workspace`.

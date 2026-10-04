@@ -2,6 +2,14 @@
 
 **Goal**: Rust-only Linux front-end (ratatui TUI) and `mouzi daemon` run as a systemd *user* service. No webview, no tray. Tauri GUI stays buildable (Windows). Design: `docs/DESIGN-linux-port.md`.
 
+## As built (deviations)
+- Workspace is `linux/` (not the repo root) so `src-tauri/target` and every CI path stay as is. Crates: `linux/mouzi-core`, `linux/mouzi` (package `mouzi-linux`, binary `mouzi`).
+- Core shares source with the GUI via `#[path]` includes of `src-tauri/src/{archive,db,i18n,ignore,operations,rules}.rs`; nothing moved, GUI Cargo files untouched. Only `operations.rs` changed (`OpLock`, `enable_multi_process`, `db_version`). Not verified here: the Tauri build (no webkit2gtk on this machine).
+- Lock files live in the data dir (`op.lock`, `daemon.lock`), not `$XDG_RUNTIME_DIR`.
+- Daemon watches silent folders only; manual-folder files surface via Review (`preview`), no in-memory pending set. No `Event` channel: the daemon calls `notify-send` directly.
+- TUI `update()` returns a small `Effect` enum so key handling is DB-free and unit-testable.
+- Stage 1 re-entrancy check: no nested `OPERATION_LOCK` acquisition found; `data_version` change across WAL connections proven by `mouzi-core/tests/multi_process.rs`.
+
 ## Findings (CodeGraph + source)
 - `db.rs`, `rules.rs`, `operations.rs`, `ignore.rs`, `archive.rs`: **zero** `tauri` references. Reusable as-is.
 - Tauri coupling is limited to `commands.rs`, `lib.rs`, `tray.rs`, `watcher.rs` (7), `integration.rs` (2), `scheduler.rs` (1).
@@ -25,19 +33,19 @@ Cargo workspace
 **Goal**: `mouzi-core` with no Tauri dependency; GUI still builds and behaves the same.
 **Success Criteria**: `cargo test -p mouzi-core` green; `cargo build` for `src-tauri` green; watcher/scheduler use `Sender<Event>`; no nested `OPERATION_LOCK` acquisition found (or fixed).
 **Tests**: existing unit + `beta_tests` moved and passing; two-connection test (concurrent writes, no `database is locked`, `data_version` changes across connections under WAL); second `OpLock` holder blocks; watcher test with temp dir + channel receiver (closes the coverage gap).
-**Status**: Not Started
+**Status**: Complete
 
 ## Stage 2: `mouzi daemon` + unit file
 **Goal**: Headless daemon organizes silent folders and runs the schedule under systemd.
 **Success Criteria**: `systemctl --user enable --now mouzi` organizes a dropped file after the grace period; a rule edit in the DB is picked up within ~1 s without restart; second daemon exits; `SIGTERM` exits cleanly after any in-flight move.
 **Tests**: integration test with temp XDG dirs: spawn daemon, drop file, assert moved + `action_logs` row; change a rule via a second connection, assert applied; `kill -9` restart checked manually.
-**Status**: Not Started
+**Status**: Complete
 
 ## Stage 3: TUI
 **Goal**: Four screens over the shared DB: Status+History (undo), Folders, Review (preview/apply), Rules (list, reorder, `$EDITOR` JSON round-trip via `import_rules`).
 **Success Criteria**: full flow in 80×24; daemon-stopped shown, not a crash; terminal restored on panic; bad rule JSON shows `validate_rule` error and leaves rules unchanged.
 **Tests**: `TestBackend` snapshots per screen; `update()` unit tests for key → state; preview/apply/undo against a temp dir; rules export → edit → import round-trip.
-**Status**: Not Started
+**Status**: Complete
 
 ## Stage 4: Packaging and docs
 **Goal**: Installable and documented.

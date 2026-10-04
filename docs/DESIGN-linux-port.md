@@ -1,5 +1,7 @@
 # Design: Linux TUI + systemd user daemon
 
+> **As built:** see "As built (deviations)" in `IMPLEMENTATION_PLAN.md`. Differences from the text below: workspace at `linux/`; core shares GUI source via `#[path]`; lock files in the data dir; daemon calls `notify-send` directly (no `Event` channel); manual folders are not watched by the daemon; TUI uses a small `Effect` enum.
+
 Companion to `IMPLEMENTATION_PLAN.md`. Minimal design: signatures only, no implementation.
 
 ## 1. Constraints

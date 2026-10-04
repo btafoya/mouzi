@@ -16,7 +16,58 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-pub static OPERATION_LOCK: Mutex<()> = Mutex::new(());
+/// Serializes file operations. In-process mutex always; plus an exclusive file lock
+/// once `enable_multi_process` is called (Linux daemon + TUI). The GUI never calls it.
+pub struct OpLock(Mutex<()>);
+pub struct OpGuard {
+    _mutex: std::sync::MutexGuard<'static, ()>,
+    _file: Option<fs::File>, // closing the file releases the flock
+}
+static LOCK_PATH: once_cell::sync::OnceCell<PathBuf> = once_cell::sync::OnceCell::new();
+pub static OPERATION_LOCK: OpLock = OpLock(Mutex::new(()));
+
+impl OpLock {
+    pub fn lock(&'static self) -> Result<OpGuard, std::convert::Infallible> {
+        let mutex = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        let file = LOCK_PATH.get().and_then(|path| {
+            let file = fs::File::options()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(path)
+                .and_then(|f| f.lock().map(|_| f));
+            // ponytail: falls back to in-process locking if the lock file is unusable
+            file.map_err(|e| eprintln!("[oplock] {}: {e}", path.display()))
+                .ok()
+        });
+        Ok(OpGuard {
+            _mutex: mutex,
+            _file: file,
+        })
+    }
+}
+
+/// Make the DB and operation lock safe for several processes (daemon + TUI):
+/// WAL, a busy timeout, and a file lock at `<dir>/op.lock`.
+pub fn enable_multi_process(dir: &Path) -> Result<(), String> {
+    let _ = LOCK_PATH.set(dir.join("op.lock"));
+    let db = db::get_db();
+    let conn = db.lock().unwrap();
+    conn.query_row("PRAGMA journal_mode=WAL", [], |r| r.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    conn.busy_timeout(Duration::from_secs(5))
+        .map_err(|e| e.to_string())
+}
+
+/// SQLite `data_version`: changes when *another* connection commits.
+pub fn db_version() -> Result<i64, String> {
+    db::get_db()
+        .lock()
+        .unwrap()
+        .query_row("PRAGMA data_version", [], |r| r.get(0))
+        .map_err(|e| e.to_string())
+}
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 static PLANS: Lazy<Mutex<HashMap<String, CachedPlan>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 

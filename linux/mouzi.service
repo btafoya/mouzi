@@ -1,0 +1,9 @@
+[Unit]
+Description=Mouzi file organizer
+
+[Service]
+ExecStart=/usr/bin/mouzi daemon
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

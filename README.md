@@ -180,6 +180,27 @@ A computer repair technician uses Mouzi to automatically move ScreenConnect inst
 
 ---
 
+## 🐧 Linux TUI + systemd service
+
+A terminal-only build for Linux desktops where the Tauri window does not work. Same rules and database as the GUI; no webview, no tray.
+
+```bash
+cd linux && cargo build --release          # binary: linux/target/release/mouzi
+install -Dm755 target/release/mouzi ~/.local/bin/mouzi
+install -Dm644 mouzi.service ~/.config/systemd/user/mouzi.service   # set ExecStart to your mouzi path
+systemctl --user daemon-reload && systemctl --user enable --now mouzi
+mouzi            # open the TUI
+```
+
+- `mouzi daemon` watches `silent` folders and organizes files after the grace period. Logs: `journalctl --user -u mouzi`.
+- The TUI edits the same database; the daemon picks changes up within about a second.
+- Screens: **Status/History** (undo), **Folders**, **Review** (preview, select, apply), **Rules** (reorder; `e` edits all rules as JSON in `$VISUAL`/`$EDITOR`).
+- Settings and `.mouziignore` are edited as files; the database is `~/.local/share/mouzi/mouzi.db`.
+- To keep the service running after logout: `loginctl enable-linger $USER`.
+- Watch limit errors: raise `fs.inotify.max_user_watches`.
+
+---
+
 ## 📐 Architecture
 
 ```
