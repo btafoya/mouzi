@@ -6,6 +6,7 @@ use super::form::{
 use super::picker::{self, Picker, Want};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use mouzi_core::db::{ActionLog, AppSettings, Rule, WatchedFolder};
+use mouzi_core::ignore::IgnoreLine;
 use mouzi_core::operations::{OperationResult, Preview, PreviewEntry};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -33,7 +34,9 @@ pub struct RuleEdit {
 #[derive(Debug)]
 pub struct Ignore {
     pub folder: String,
-    pub patterns: Vec<String>,
+    /// The file as typed lines: comments ride along untouched, patterns are
+    /// the rows the keys act on.
+    pub lines: Vec<IgnoreLine>,
     pub sel: usize,
     /// (index being edited or None for new, text)
     pub input: Option<(Option<usize>, String)>,
@@ -117,7 +120,7 @@ pub enum Effect {
     OpenIgnore(String),
     SaveIgnore {
         folder: String,
-        patterns: Vec<String>,
+        lines: Vec<IgnoreLine>,
     },
 }
 
@@ -316,15 +319,18 @@ fn pick_key(m: &mut Model, mut pick: Pick, k: KeyEvent) -> Option<Effect> {
                     } else {
                         name.to_string()
                     };
-                    if ig.patterns.contains(&pattern) {
+                    if ig.lines.iter().any(|l| l.pattern() == Some(pattern.as_str())) {
                         m.message = format!("{pattern} is already ignored");
                         return None;
                     }
-                    ig.patterns.push(pattern);
-                    ig.sel = ig.patterns.len() - 1;
+                    ig.sel = ig.lines.len();
+                    ig.lines.push(IgnoreLine::Pattern {
+                        pattern,
+                        raw: None,
+                    });
                     Some(Effect::SaveIgnore {
                         folder: ig.folder.clone(),
-                        patterns: ig.patterns.clone(),
+                        lines: ig.lines.clone(),
                     })
                 }
                 _ => None,
@@ -403,12 +409,15 @@ fn ignore_key(m: &mut Model, mut ig: Ignore, k: KeyEvent) -> Option<Effect> {
                 ig.input = Some((at, buf));
             }
             KeyCode::Enter => {
-                let v = buf.trim().to_string();
+                let edited = IgnoreLine::Pattern {
+                    pattern: buf.trim().to_string(),
+                    raw: None,
+                };
                 match at {
-                    Some(i) => ig.patterns[i] = v,
+                    Some(i) => ig.lines[i] = edited,
                     None => {
-                        ig.patterns.push(v);
-                        ig.sel = ig.patterns.len() - 1;
+                        ig.lines.push(edited);
+                        ig.sel = ig.lines.len() - 1;
                     }
                 }
                 save = true;
@@ -427,7 +436,7 @@ fn ignore_key(m: &mut Model, mut ig: Ignore, k: KeyEvent) -> Option<Effect> {
         match k.code {
             KeyCode::Esc | KeyCode::Char('q') => return None,
             KeyCode::Down | KeyCode::Char('j') => {
-                ig.sel = (ig.sel + 1).min(ig.patterns.len().saturating_sub(1))
+                ig.sel = (ig.sel + 1).min(ig.lines.len().saturating_sub(1))
             }
             KeyCode::Up | KeyCode::Char('k') => ig.sel = ig.sel.saturating_sub(1),
             KeyCode::Char('n') => ig.input = Some((None, String::new())),
@@ -439,12 +448,19 @@ fn ignore_key(m: &mut Model, mut ig: Ignore, k: KeyEvent) -> Option<Effect> {
                 }));
                 return None;
             }
-            KeyCode::Enter if !ig.patterns.is_empty() => {
-                ig.input = Some((Some(ig.sel), ig.patterns[ig.sel].clone()))
+            KeyCode::Enter => {
+                if let Some(pattern) = ig
+                    .lines
+                    .get(ig.sel)
+                    .and_then(IgnoreLine::pattern)
+                    .map(str::to_string)
+                {
+                    ig.input = Some((Some(ig.sel), pattern));
+                }
             }
-            KeyCode::Char('d') if !ig.patterns.is_empty() => {
-                ig.patterns.remove(ig.sel);
-                ig.sel = ig.sel.min(ig.patterns.len().saturating_sub(1));
+            KeyCode::Char('d') if !ig.lines.is_empty() => {
+                ig.lines.remove(ig.sel);
+                ig.sel = ig.sel.min(ig.lines.len().saturating_sub(1));
                 save = true;
             }
             _ => {}
@@ -452,7 +468,7 @@ fn ignore_key(m: &mut Model, mut ig: Ignore, k: KeyEvent) -> Option<Effect> {
     }
     let effect = save.then(|| Effect::SaveIgnore {
         folder: ig.folder.clone(),
-        patterns: ig.patterns.clone(),
+        lines: ig.lines.clone(),
     });
     m.mode = Mode::Ignore(ig);
     effect
@@ -794,22 +810,22 @@ mod tests {
         let mut m = Model::new();
         m.mode = Mode::Ignore(Ignore {
             folder: docs.to_string_lossy().into(),
-            patterns: vec![],
+            lines: vec![],
             sel: 0,
             input: None,
         });
         update(&mut m, k(KeyCode::Char('b')));
-        let Some(Effect::SaveIgnore { patterns, .. }) = update(&mut m, k(KeyCode::Enter)) else {
+        let Some(Effect::SaveIgnore { lines, .. }) = update(&mut m, k(KeyCode::Enter)) else {
             panic!()
         };
-        assert_eq!(patterns, ["sub/"]);
+        assert_eq!(lines, [pat("sub/")]);
         assert!(matches!(m.mode, Mode::Ignore(_)));
         update(&mut m, k(KeyCode::Char('b')));
         update(&mut m, k(KeyCode::Down));
-        let Some(Effect::SaveIgnore { patterns, .. }) = update(&mut m, k(KeyCode::Enter)) else {
+        let Some(Effect::SaveIgnore { lines, .. }) = update(&mut m, k(KeyCode::Enter)) else {
             panic!()
         };
-        assert_eq!(patterns, ["sub/", "a.tmp"]);
+        assert_eq!(lines, [pat("sub/"), pat("a.tmp")]);
         update(&mut m, k(KeyCode::Char('b')));
         assert!(
             update(&mut m, k(KeyCode::Enter)).is_none(),
@@ -859,6 +875,17 @@ mod tests {
         assert_eq!(m.screen, Screen::Status);
     }
 
+    fn pat(p: &str) -> IgnoreLine {
+        IgnoreLine::Pattern {
+            pattern: p.into(),
+            raw: None,
+        }
+    }
+    fn cm(t: &str) -> IgnoreLine {
+        IgnoreLine::Comment {
+            text: t.into(),
+        }
+    }
     fn typed(m: &mut Model, text: &str) {
         for c in text.chars() {
             update(m, k(KeyCode::Char(c)));
@@ -1020,34 +1047,45 @@ mod tests {
         let mut m = Model::new();
         m.mode = Mode::Ignore(Ignore {
             folder: "/dl".into(),
-            patterns: vec!["*.tmp".into()],
-            sel: 0,
+            lines: vec![cm("# tmp files"), pat("*.tmp")],
+            sel: 1,
             input: None,
         });
         update(&mut m, k(KeyCode::Char('n')));
         typed(&mut m, "node_modules/");
-        let Some(Effect::SaveIgnore { patterns, .. }) = update(&mut m, k(KeyCode::Enter)) else {
+        let Some(Effect::SaveIgnore { lines, .. }) = update(&mut m, k(KeyCode::Enter)) else {
             panic!()
         };
-        assert_eq!(patterns, ["*.tmp", "node_modules/"]);
+        assert_eq!(lines, [cm("# tmp files"), pat("*.tmp"), pat("node_modules/")]);
+        // Enter on a comment line is inert: comments are not editable patterns
+        update(&mut m, k(KeyCode::Up));
         update(&mut m, k(KeyCode::Up));
         update(&mut m, k(KeyCode::Enter));
+        assert!(matches!(
+            m.mode,
+            Mode::Ignore(Ignore {
+                input: None,
+                ..
+            })
+        ));
+        update(&mut m, k(KeyCode::Down));
+        update(&mut m, k(KeyCode::Enter));
         update(&mut m, k(KeyCode::Backspace));
-        let Some(Effect::SaveIgnore { patterns, .. }) = update(&mut m, k(KeyCode::Enter)) else {
+        let Some(Effect::SaveIgnore { lines, .. }) = update(&mut m, k(KeyCode::Enter)) else {
             panic!()
         };
-        assert_eq!(patterns[0], "*.tm");
+        assert_eq!(lines[1].pattern(), Some("*.tm"));
         update(&mut m, k(KeyCode::Char('n')));
         assert!(
             update(&mut m, k(KeyCode::Enter)).is_none(),
             "empty pattern rejected"
         );
         update(&mut m, k(KeyCode::Esc));
-        let Some(Effect::SaveIgnore { patterns, .. }) = update(&mut m, k(KeyCode::Char('d')))
+        let Some(Effect::SaveIgnore { lines, .. }) = update(&mut m, k(KeyCode::Char('d')))
         else {
             panic!()
         };
-        assert_eq!(patterns, ["node_modules/"]);
+        assert_eq!(lines, [cm("# tmp files"), pat("node_modules/")]);
         update(&mut m, k(KeyCode::Esc));
         assert!(matches!(m.mode, Mode::Normal));
     }

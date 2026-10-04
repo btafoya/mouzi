@@ -1056,34 +1056,40 @@ export default function Settings() {
   );
 }
 
+type IgnoreLine =
+  | { type: "comment"; text: string }
+  | { type: "pattern"; pattern: string; raw: string | null };
+const isComment = (l: IgnoreLine): l is { type: "comment"; text: string } =>
+  l.type === "comment";
+
 function IgnoreTab() {
   const { t } = useTranslation();
   const { folders } = useAppStore();
   const [selectedFolder, setSelectedFolder] = useState("");
-  const [patterns, setPatterns] = useState<string[]>([]);
+  const [lines, setLines] = useState<IgnoreLine[]>([]);
   const [newPattern, setNewPattern] = useState("");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (selectedFolder) {
-      invoke<string[]>("load_mouziignore_cmd", { folderPath: selectedFolder })
-        .then(setPatterns)
-        .catch(() => setPatterns([]));
+      invoke<IgnoreLine[]>("load_mouziignore_cmd", { folderPath: selectedFolder })
+        .then(setLines)
+        .catch(() => setLines([]));
     } else {
-      setPatterns([]);
+      setLines([]);
     }
   }, [selectedFolder]);
 
   const handleAdd = () => {
     const trimmed = newPattern.trim();
-    if (!trimmed || patterns.includes(trimmed)) return;
-    setPatterns([...patterns, trimmed]);
+    if (!trimmed || lines.some((l) => !isComment(l) && l.pattern === trimmed)) return;
+    setLines([...lines, { type: "pattern", pattern: trimmed, raw: null }]);
     setNewPattern("");
     setSaved(false);
   };
 
   const handleRemove = (idx: number) => {
-    setPatterns(patterns.filter((_, i) => i !== idx));
+    setLines(lines.filter((_, i) => i !== idx));
     setSaved(false);
   };
 
@@ -1092,7 +1098,7 @@ function IgnoreTab() {
     try {
       await invoke("save_mouziignore_cmd", {
         folderPath: selectedFolder,
-        patterns,
+        lines,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -1132,27 +1138,47 @@ function IgnoreTab() {
             <label className="text-sm font-medium text-text-muted block">
               {t("settings.ignore.patterns")}
             </label>
-            {patterns.length === 0 && (
+            {lines.length === 0 && (
               <p className="text-sm text-text-muted italic">
                 {t("settings.ignore.noRules")}
               </p>
             )}
-            {patterns.map((p, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2"
-              >
-                <code className="text-sm text-primary">{p}</code>
-                <button
-                  onClick={() => handleRemove(i)}
-                  className="text-text-muted hover:text-red-400 transition-colors"
-                  title={t("settings.ignore.remove")}
-                  aria-label={`${t("settings.ignore.remove")}: ${p}`}
+            {lines.map((l, i) => {
+              if (isComment(l)) {
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2 opacity-60"
+                  >
+                    <span className="text-sm text-text-muted italic">{l.text}</span>
+                    <button
+                      onClick={() => handleRemove(i)}
+                      className="text-text-muted hover:text-red-400 transition-colors"
+                      title={t("settings.ignore.remove")}
+                      aria-label={`${t("settings.ignore.remove")}: ${l.text}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={i}
+                  className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2"
                 >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
+                  <code className="text-sm text-primary">{l.pattern}</code>
+                  <button
+                    onClick={() => handleRemove(i)}
+                    className="text-text-muted hover:text-red-400 transition-colors"
+                    title={t("settings.ignore.remove")}
+                    aria-label={`${t("settings.ignore.remove")}: ${l.pattern}`}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex gap-2">

@@ -147,17 +147,17 @@ fn exec(effect: Effect, m: &mut Model, tx: &Sender<Msg>) {
             .map(|_| "settings saved".into())
             .map_err(|e| e.to_string()),
         Effect::OpenIgnore(folder) => {
-            let patterns = mouzi_core::ignore::load_mouziignore(&folder);
+            let lines = mouzi_core::ignore::load_mouziignore_lines(&folder);
             m.mode = app::Mode::Ignore(app::Ignore {
                 folder,
-                patterns,
+                lines,
                 sel: 0,
                 input: None,
             });
             Ok(String::new())
         }
-        Effect::SaveIgnore { folder, patterns } => {
-            mouzi_core::ignore::save_mouziignore(&folder, &patterns)
+        Effect::SaveIgnore { folder, lines } => {
+            mouzi_core::ignore::save_mouziignore_lines(&folder, &lines)
                 .map(|_| "ignore list saved".into())
         }
         Effect::Discard(id) => {
@@ -327,17 +327,37 @@ mod tests {
         exec(Effect::SaveSettings(s), &mut m, &tx);
         assert_eq!(db::get_settings().unwrap().grace_period_seconds, 42);
         let folder = watched.to_string_lossy().to_string();
-        let patterns = vec!["*.tmp".to_string(), "node_modules/".to_string()];
+        let lines = vec![
+            mouzi_core::ignore::IgnoreLine::Comment {
+                text: "# temp files".into(),
+            },
+            mouzi_core::ignore::IgnoreLine::Pattern {
+                pattern: "*.tmp".into(),
+                raw: None,
+            },
+        ];
         exec(
             Effect::SaveIgnore {
                 folder: folder.clone(),
-                patterns: patterns.clone(),
+                lines: lines.clone(),
             },
             &mut m,
             &tx,
         );
         exec(Effect::OpenIgnore(folder), &mut m, &tx);
-        assert!(matches!(&m.mode, app::Mode::Ignore(ig) if ig.patterns == patterns));
+        let patterns: Vec<String> = match &m.mode {
+            app::Mode::Ignore(ig) => ig
+                .lines
+                .iter()
+                .filter_map(|l| l.pattern())
+                .map(str::to_string)
+                .collect(),
+            _ => panic!("not in the ignore list"),
+        };
+        assert_eq!(patterns, ["*.tmp"]);
+        assert!(std::fs::read_to_string(watched.join(".mouziignore"))
+            .unwrap()
+            .contains("# temp files"));
 
         // add_folder mirrors the GUI checks
         assert!(add_folder(watched.to_str().unwrap()).is_err());

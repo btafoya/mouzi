@@ -1,5 +1,5 @@
 use crate::db::*;
-use crate::ignore::{load_mouziignore, save_mouziignore};
+use crate::ignore::{load_mouziignore_lines, save_mouziignore_lines, IgnoreLine};
 use crate::rules::{manual_scan_folder, process_file};
 use crate::AppState;
 use serde::Serialize;
@@ -474,13 +474,13 @@ pub fn is_autostart_enabled_cmd(app: AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub fn load_mouziignore_cmd(folder_path: String) -> Result<Vec<String>, String> {
-    Ok(load_mouziignore(&folder_path))
+pub fn load_mouziignore_cmd(folder_path: String) -> Result<Vec<IgnoreLine>, String> {
+    Ok(load_mouziignore_lines(&folder_path))
 }
 
 #[tauri::command]
-pub fn save_mouziignore_cmd(folder_path: String, patterns: Vec<String>) -> Result<(), String> {
-    save_mouziignore(&folder_path, &patterns)
+pub fn save_mouziignore_cmd(folder_path: String, lines: Vec<IgnoreLine>) -> Result<(), String> {
+    save_mouziignore_lines(&folder_path, &lines)
 }
 
 /// Returns and clears the pending folder path that should be opened after a notification click.

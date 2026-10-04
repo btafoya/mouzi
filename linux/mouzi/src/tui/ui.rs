@@ -1,6 +1,7 @@
 use super::app::{Mode, Model, Purpose, Screen};
 use super::form::{shadowed, Form, Kind};
 use super::picker::Want;
+use mouzi_core::ignore::IgnoreLine;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -65,12 +66,19 @@ pub fn view(m: &Model, f: &mut Frame) {
             );
         }
         (Mode::Ignore(ig), _) => {
-            let items = if ig.patterns.is_empty() {
+            let items = if ig.lines.is_empty() {
                 vec![ListItem::new("(no patterns)")]
             } else {
-                ig.patterns
+                ig.lines
                     .iter()
-                    .map(|p| ListItem::new(p.clone()))
+                    .map(|l| match l {
+                        IgnoreLine::Comment { text } => {
+                            ListItem::new(text.clone()).style(Style::new().fg(Color::DarkGray))
+                        }
+                        IgnoreLine::Pattern { pattern, .. } => {
+                            ListItem::new(pattern.clone())
+                        }
+                    })
                     .collect()
             };
             list(
@@ -389,8 +397,16 @@ mod tests {
         let mut m = Model::new();
         m.mode = Mode::Ignore(super::super::app::Ignore {
             folder: "/dl".into(),
-            patterns: vec!["*.tmp".into()],
-            sel: 0,
+            lines: vec![
+                IgnoreLine::Comment {
+                    text: "# temp files".into(),
+                },
+                IgnoreLine::Pattern {
+                    pattern: "*.tmp".into(),
+                    raw: None,
+                },
+            ],
+            sel: 1,
             input: None,
         });
         let out = render(&m, 110, 30);

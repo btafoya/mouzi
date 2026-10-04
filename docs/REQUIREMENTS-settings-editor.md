@@ -80,7 +80,7 @@ Implemented in `linux/mouzi/src/tui/{form,app,ui,mod}.rs`. Differences from the 
 - **Validation display:** one error line under the form (first failing rule) instead of per-field marks; save is blocked while it shows. Messages are readable translations of the core's `validation.*` codes.
 - **Conditional fields:** all rule fields are always shown (no hiding destination for delete/ignore or rename template for non-rename).
 - **Folders:** no detail screen; `i` opens the ignore list, `m`/`n` change mode/only-new. Deleting a folder asks for `y` and says how many rules are scoped to it (open question 1: warn only).
-- **Ignore list:** each add/edit/delete is written to `.mouziignore` immediately (no `Ctrl-S`); deleting a single pattern has no confirmation. Hand-written comments are still lost on save (core writer unchanged).
+- **Ignore list:** each add/edit/delete is written to `.mouziignore` immediately (no `Ctrl-S`); deleting a single pattern has no confirmation. Comments are preserved on save (open question 2): `load_mouziignore_lines`/`save_mouziignore_lines` round-trip comment and untouched pattern lines verbatim; an edited line drops its own inline comment.
 - **Settings screen:** its form captures all keys (so `q` types); `Esc` leaves, `Esc` twice if there are unsaved edits.
 - **JSON escape hatch** (`e`) kept (open question 3).
 - **Rule duplicate/toggle** save immediately; **delete** and **undo-all** use a `y` prompt.
