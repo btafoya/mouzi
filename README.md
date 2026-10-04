@@ -120,9 +120,9 @@ If you want to add a new language, open an issue first so we can confirm the lan
 
 | Installer | Size | Best For |
 |-----------|------|----------|
-| [`Mouzi_0.2.1_x64-setup.exe`](https://mouzi.cc/download) | ~4.8 MB | Regular users (auto-installer) |
-| [`Mouzi_0.2.1_x64_en-US.msi`](https://mouzi.cc/download) | ~6.8 MB | Enterprise / Active Directory |
-| [`Mouzi_0.2.1_x64-portable.exe`](https://mouzi.cc/download) | ~18.5 MB | Power users (no install) |
+| [`Mouzi_0.2.2_x64-setup.exe`](https://mouzi.cc/download) | ~4.8 MB | Regular users (auto-installer) |
+| [`Mouzi_0.2.2_x64_en-US.msi`](https://mouzi.cc/download) | ~6.8 MB | Enterprise / Active Directory |
+| [`Mouzi_0.2.2_x64-portable.exe`](https://mouzi.cc/download) | ~18.5 MB | Power users (no install) |
 
 > ⚠️ **Windows 10/11.** Requires the [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (pre-installed on most systems).
 
@@ -130,9 +130,9 @@ If you want to add a new language, open an issue first so we can confirm the lan
 
 | Package | Size | Best For |
 |---------|------|----------|
-| [`Mouzi_0.2.1_amd64.AppImage`](https://mouzi.cc/download/linux) | ~86.6 MB | Universal — works on most distros |
-| [`Mouzi_0.2.1_amd64.deb`](https://mouzi.cc/download/linux) | ~8.8 MB | Debian, Ubuntu, Mint, Pop!_OS |
-| [`Mouzi-0.2.1-1.x86_64.rpm`](https://mouzi.cc/download/linux) | ~8.9 MB | Fedora, openSUSE, RHEL |
+| [`Mouzi_0.2.2_amd64.AppImage`](https://mouzi.cc/download/linux) | ~86.6 MB | Universal — works on most distros |
+| [`Mouzi_0.2.2_amd64.deb`](https://mouzi.cc/download/linux) | ~8.8 MB | Debian, Ubuntu, Mint, Pop!_OS |
+| [`Mouzi-0.2.2-1.x86_64.rpm`](https://mouzi.cc/download/linux) | ~8.9 MB | Fedora, openSUSE, RHEL |
 
 > 🐧 **Linux requirements:** `libwebkit2gtk-4.1` and `libayatana-appindicator3`. Most modern distros have these pre-installed.
 
@@ -140,15 +140,15 @@ If you want to add a new language, open an issue first so we can confirm the lan
 
 | Package | Size | Best For |
 |---------|------|----------|
-| [`mouzi-linux_0.2.1-1_amd64.deb`](https://github.com/hsr88/mouzi/releases/latest) | ~1.9 MB | Debian, Ubuntu, Mint (installs the binary + systemd user unit) |
-| [`mouzi-linux-0.2.1-x86_64.tar.gz`](https://github.com/hsr88/mouzi/releases/latest) | ~2.6 MB | Any distro (untar the `mouzi` binary and `mouzi.service` where you want them) |
+| [`mouzi-linux_0.2.2-1_amd64.deb`](https://github.com/hsr88/mouzi/releases/latest) | ~1.9 MB | Debian, Ubuntu, Mint (installs the binary + systemd user unit) |
+| [`mouzi-linux-0.2.2-x86_64.tar.gz`](https://github.com/hsr88/mouzi/releases/latest) | ~2.6 MB | Any distro (untar the `mouzi` binary and `mouzi.service` where you want them) |
 
 Install from the tarball:
 
 ```bash
-tar -xzf mouzi-linux-0.2.1-x86_64.tar.gz
-install -Dm755 mouzi-linux-0.2.1/mouzi ~/.local/bin/mouzi
-install -Dm644 mouzi-linux-0.2.1/mouzi.service ~/.config/systemd/user/mouzi.service   # set ExecStart to your mouzi path
+tar -xzf mouzi-linux-0.2.2-x86_64.tar.gz
+install -Dm755 mouzi-linux-0.2.2/mouzi ~/.local/bin/mouzi
+install -Dm644 mouzi-linux-0.2.2/mouzi.service ~/.config/systemd/user/mouzi.service   # set ExecStart to your mouzi path
 systemctl --user daemon-reload && systemctl --user enable --now mouzi
 ```
 
@@ -273,20 +273,18 @@ Output will be in `src-tauri/target/release/bundle/`.
 
 ---
 
-## 🆕 Mouzi 0.2.1
+## 🆕 Mouzi 0.2.2
 
-This patch completes the new interface translations in all 11 supported languages and adds missing Spanish archive-import text. The organization features include:
+This release ships the full settings editor for the Linux TUI and polishes how rules and ignore files are written. Update from inside Mouzi or download a package below. Existing settings, rules and history are preserved.
 
-- Preview matched rules and destinations, then approve selected operations.
-- Suggest mode and per-folder processing of only new files.
-- File-size and modification-date conditions; rename-only templates.
-- History filters, organization runs and verified undo of selected files or runs.
-- Warnings for misleading executable filenames and optional **Add to Mouzi** in Windows Explorer.
-- Simplified Chinese, defensive extension-list validation and theme contrast fixes.
+- **Linux TUI settings editor:** create, edit, duplicate, reorder and delete rules; per-folder `.mouziignore` editing; app settings — all validated as typed, no JSON required (the JSON editor stays as an escape hatch).
+- **`.mouziignore` comments preserved:** hand-written comments and untouched lines survive saves; edited lines are re-escaped.
+- **Safer rule defaults:** new rules default to the first watched folder instead of "all folders"; the GUI now shows a Scope dropdown (previously rules were silently all-folders with no control).
+- The TUI is now downloadable: a `mouzi-linux` `.deb` (installs the binary and the systemd user unit) and a tarball ship alongside the GUI packages, covered by `SHA256SUMS.txt`.
 
-Stable settings are preserved. Older History entries without verification records require manual restoration. New controls are translated into all 11 supported interface languages. Windows files remain unsigned with Authenticode; signed updater packages are separate.
+Windows files remain unsigned with Authenticode; signed updater packages are separate. Linux packages target x86_64. macOS remains unofficial and experimental.
 
-[Full release notes](https://github.com/hsr88/mouzi/releases/tag/v0.2.1) · [Documentation](https://mouzi.cc/docs)
+[Full release notes](https://github.com/hsr88/mouzi/releases/tag/v0.2.2) · [Documentation](https://mouzi.cc/docs)
 
 ---
 

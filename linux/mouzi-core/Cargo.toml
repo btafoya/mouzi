@@ -1,6 +1,6 @@
 [package]
 name = "mouzi-core"
-version = "0.2.1"
+version = "0.2.2"
 description = "Tauri-free core of Mouzi, sharing source with src-tauri"
 edition = "2021"
 
