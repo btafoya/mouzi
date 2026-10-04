@@ -56,6 +56,8 @@
       "save": "保存",
       "delete": "删除",
       "name": "名称",
+      "scope": "范围",
+      "scopeAll": "所有文件夹",
       "extensions": "扩展名",
       "destination": "目标位置",
       "pattern": "匹配模式",

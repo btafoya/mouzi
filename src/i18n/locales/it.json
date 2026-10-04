@@ -56,6 +56,8 @@
       "save": "Salva",
       "delete": "Elimina",
       "name": "Nome",
+      "scope": "Ambito",
+      "scopeAll": "Tutte le cartelle",
       "extensions": "Estensioni",
       "destination": "Destinazione",
       "pattern": "Pattern (regex)",

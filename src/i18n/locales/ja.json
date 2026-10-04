@@ -56,6 +56,8 @@
       "save": "保存",
       "delete": "削除",
       "name": "名前",
+      "scope": "スコープ",
+      "scopeAll": "すべてのフォルダー",
       "extensions": "拡張子",
       "destination": "移動先",
       "pattern": "パターン",

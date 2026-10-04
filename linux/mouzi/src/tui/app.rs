@@ -600,7 +600,9 @@ fn screen_key(m: &mut Model, k: KeyEvent, sel: usize) -> Option<Effect> {
         }
         (Screen::Rules, KeyCode::Char('n')) => {
             let next = m.rules.iter().map(|r| r.priority).max().unwrap_or(0) + 1;
-            let base = blank_rule(next); // bottom: a new rule never shadows existing ones
+            let mut base = blank_rule(next); // bottom: a new rule never shadows existing ones
+            // default to the first watched folder: firing on everything should be a conscious choice
+            base.folder_id = m.folders.first().and_then(|f| f.id).unwrap_or(0);
             m.mode = Mode::Rule(Box::new(RuleEdit {
                 form: rule_form(&base, &m.folders),
                 base,
@@ -903,6 +905,31 @@ mod tests {
         m.screen = Screen::Rules;
         m.rules = (1..=n).map(|i| rule(i, i as i32)).collect();
         m
+    }
+
+    #[test]
+    fn new_rule_defaults_to_the_first_watched_folder() {
+        let mut m = on_rules(1);
+        m.folders = vec![WatchedFolder {
+            id: Some(5),
+            path: "/dl".into(),
+            enabled: true,
+            mode: "silent".into(),
+            only_new: false,
+        }];
+        m.screen = Screen::Rules;
+        update(&mut m, k(KeyCode::Char('n')));
+        let Mode::Rule(edit) = &m.mode else {
+            panic!("no form")
+        };
+        assert_eq!(edit.form.get("Scope"), "/dl");
+        // with no watched folders, "all folders" is still the scope
+        let mut blank = Model::new();
+        blank.screen = Screen::Rules;
+        update(&mut blank, k(KeyCode::Char('n')));
+        if let Mode::Rule(edit) = &blank.mode {
+            assert_eq!(edit.form.get("Scope"), "all folders");
+        }
     }
 
     #[test]

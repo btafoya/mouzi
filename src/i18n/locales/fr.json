@@ -56,6 +56,8 @@
       "save": "Enregistrer",
       "delete": "Supprimer",
       "name": "Nom",
+      "scope": "Portée",
+      "scopeAll": "Tous les dossiers",
       "extensions": "Extensions",
       "destination": "Destination",
       "pattern": "Pattern",

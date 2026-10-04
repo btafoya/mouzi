@@ -56,6 +56,8 @@
       "save": "Save",
       "delete": "Delete",
       "name": "Name",
+      "scope": "Scope",
+      "scopeAll": "All folders",
       "extensions": "Extensions",
       "destination": "Destination",
       "pattern": "Pattern",

@@ -62,6 +62,8 @@
       "save": "Lưu",
       "delete": "Xóa",
       "name": "Tên",
+      "scope": "Phạm vi",
+      "scopeAll": "Tất cả thư mục",
       "extensions": "Đuôi tệp",
       "destination": "Đích đến",
       "pattern": "Mẫu",

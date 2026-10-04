@@ -528,7 +528,8 @@ export default function Settings() {
                     pattern: null,
                     destination: "",
                     action: "move",
-                    folder_id: 0,
+                    // new rules are scoped to a watched folder: "all folders" stays an explicit choice
+                    folder_id: folders[0]?.id ?? 0,
                     notification_message: null,
                     normalize_extensions: false,
                     extension_mappings: "jpeg:jpg",
@@ -638,6 +639,23 @@ export default function Settings() {
                         <FolderOpen size={14} />
                       </button>
                     </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-text-muted">{t("settings.rules.scope")}</label>
+                    <select
+                      value={editingRule.folder_id || 0}
+                      onChange={(e) =>
+                        setEditingRule({ ...editingRule, folder_id: parseInt(e.target.value) || 0 })
+                      }
+                      className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-primary"
+                    >
+                      <option value={0}>{t("settings.rules.scopeAll")}</option>
+                      {folders.map((folder) => (
+                        <option key={folder.id} value={folder.id}>
+                          {folder.path}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-text-muted">{t("settings.rules.action")}</label>

@@ -46,6 +46,8 @@
       "save": "Guardar",
       "delete": "Eliminar",
       "name": "Nombre",
+      "scope": "Alcance",
+      "scopeAll": "Todas las carpetas",
       "extensions": "Extensiones",
       "destination": "Destino",
       "pattern": "Patrón",

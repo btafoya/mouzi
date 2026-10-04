@@ -56,6 +56,8 @@
       "save": "Speichern",
       "delete": "Löschen",
       "name": "Name",
+      "scope": "Geltungsbereich",
+      "scopeAll": "Alle Ordner",
       "extensions": "Erweiterungen",
       "destination": "Ziel",
       "pattern": "Pattern",
