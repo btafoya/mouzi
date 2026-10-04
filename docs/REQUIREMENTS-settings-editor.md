@@ -84,4 +84,5 @@ Implemented in `linux/mouzi/src/tui/{form,app,ui,mod}.rs`. Differences from the 
 - **Settings screen:** its form captures all keys (so `q` types); `Esc` leaves, `Esc` twice if there are unsaved edits.
 - **JSON escape hatch** (`e`) kept (open question 3).
 - **Rule duplicate/toggle** save immediately; **delete** and **undo-all** use a `y` prompt.
+- **Scope default:** a new rule defaults to the first watched folder (TUI `n`, GUI add rule); "all folders" is an explicit choice. The GUI editor now has a Scope dropdown (previously every GUI-created rule was all-folders with no way to see or change it).
 - Shadow detection is conservative: only an earlier enabled rule with no pattern/size/date limits counts.
