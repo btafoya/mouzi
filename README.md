@@ -136,6 +136,22 @@ If you want to add a new language, open an issue first so we can confirm the lan
 
 > 🐧 **Linux requirements:** `libwebkit2gtk-4.1` and `libayatana-appindicator3`. Most modern distros have these pre-installed.
 
+### Linux TUI (terminal, no GUI)
+
+| Package | Size | Best For |
+|---------|------|----------|
+| [`mouzi-linux_0.2.1-1_amd64.deb`](https://github.com/hsr88/mouzi/releases/latest) | ~1.9 MB | Debian, Ubuntu, Mint (installs the binary + systemd user unit) |
+| [`mouzi-linux-0.2.1-x86_64.tar.gz`](https://github.com/hsr88/mouzi/releases/latest) | ~2.6 MB | Any distro (untar the `mouzi` binary and `mouzi.service` where you want them) |
+
+Install from the tarball:
+
+```bash
+tar -xzf mouzi-linux-0.2.1-x86_64.tar.gz
+install -Dm755 mouzi-linux-0.2.1/mouzi ~/.local/bin/mouzi
+install -Dm644 mouzi-linux-0.2.1/mouzi.service ~/.config/systemd/user/mouzi.service   # set ExecStart to your mouzi path
+systemctl --user daemon-reload && systemctl --user enable --now mouzi
+```
+
 **SHA-256 checksums:** every GitHub release includes a generated `SHA256SUMS.txt`
 covering the exact published artifacts. Use that file instead of copying a checksum
 from an older release.
@@ -183,6 +199,8 @@ A computer repair technician uses Mouzi to automatically move ScreenConnect inst
 ## 🐧 Linux TUI + systemd service
 
 A terminal-only build for Linux desktops where the Tauri window does not work. Same rules and database as the GUI; no webview, no tray.
+
+Install options: the TUI `.deb` or `.tar.gz` in the [Download](#-download) section, or build from source:
 
 ```bash
 cd linux && cargo build --release          # binary: linux/target/release/mouzi

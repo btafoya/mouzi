@@ -115,6 +115,16 @@ jobs:
       - name: Build Linux packages
         run: npm run tauri build -- --ci
 
+      - name: Build the TUI binary, deb and tarball
+        run: |
+          cargo build --locked --release --manifest-path linux/mouzi/Cargo.toml
+          cargo install --locked cargo-deb
+          cargo deb --no-build --manifest-path linux/mouzi/Cargo.toml -o linux/target/release/deb
+          VER=$(sed -n 's/^version = "\(.*\)"/\1/p' linux/mouzi/Cargo.toml | head -1)
+          tar -C linux --transform "s|^|mouzi-linux-${VER}/|" --owner=0 --group=0 \
+            -czf "mouzi-linux-${VER}-x86_64.tar.gz" target/release/mouzi mouzi.service
+          test -f "mouzi-linux-${VER}-x86_64.tar.gz"
+
       - name: Test Rust on Linux
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
 
@@ -135,8 +145,8 @@ jobs:
       - name: Ensure DEB and RPM updater signatures
         shell: bash
         run: |
-          DEB=$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)
-          RPM=$(find src-tauri/target/release/bundle/rpm -maxdepth 1 -name '*.rpm' -print -quit)
+          DEB=$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name 'Mouzi_*.deb' -print -quit)
+          RPM=$(find src-tauri/target/release/bundle/rpm -maxdepth 1 -name 'Mouzi-*.rpm' -print -quit)
           test -n "$DEB"
           test -n "$RPM"
           if [[ ! -s "$DEB.sig" ]]; then
@@ -180,6 +190,8 @@ jobs:
           cp src-tauri/target/release/bundle/deb/*.sig release-linux/
           cp src-tauri/target/release/bundle/rpm/*.rpm release-linux/
           cp src-tauri/target/release/bundle/rpm/*.sig release-linux/
+          cp linux/target/release/deb/mouzi-linux_*.deb release-linux/
+          mv mouzi-linux-*.tar.gz release-linux/
 
       - name: Upload validated Linux artifacts
         uses: actions/upload-artifact@v4
@@ -251,8 +263,8 @@ jobs:
           NSIS_PATH=$(find release -maxdepth 1 -name '*-setup.exe' -print -quit)
           MSI_PATH=$(find release -maxdepth 1 -name '*.msi' -print -quit)
           APPIMAGE_PATH=$(find release -maxdepth 1 -name '*.AppImage' -print -quit)
-          DEB_PATH=$(find release -maxdepth 1 -name '*.deb' -print -quit)
-          RPM_PATH=$(find release -maxdepth 1 -name '*.rpm' -print -quit)
+          DEB_PATH=$(find release -maxdepth 1 -name 'Mouzi_*.deb' -print -quit)
+          RPM_PATH=$(find release -maxdepth 1 -name 'Mouzi-*.rpm' -print -quit)
           test -n "$NSIS_PATH"
           test -n "$MSI_PATH"
           test -n "$APPIMAGE_PATH"

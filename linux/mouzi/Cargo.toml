@@ -21,7 +21,9 @@ crossterm = "0.28"
 [package.metadata.deb]
 name = "mouzi-linux"
 section = "utils"
-depends = "$auto"
+# explicit rather than $auto: cargo-deb needs dpkg-shlibdeps for auto resolution,
+# and the binary only needs the usual runtime libraries
+depends = ["libc6", "libgcc-s1"]
 assets = [
     ["target/release/mouzi", "usr/bin/", "755"],
     ["../mouzi.service", "usr/lib/systemd/user/", "644"],
