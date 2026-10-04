@@ -67,13 +67,13 @@ Tab order: Status · Folders · Review · Rules · Settings.
 - Deleting a folder leaves rules with a dangling `folder_id` that can never match. The editor should warn or offer to delete or re-scope them.
 - `save_mouziignore` writes a generated header plus patterns, so hand-written comments are lost on save (FR8 conflict).
 
-## Open questions
-1. Folder deletion with dependent rules: warn only, re-scope them to "all folders", or delete them?
-2. Ignore editor: accept losing hand-written comments, or extend the core writer to preserve them?
-3. Keep the JSON escape hatch (`e`) permanently, or remove once the form is complete?
-4. Should destination get a directory picker later (currently typed text)?
+**Resolved open questions:**
+1. Folder deletion with dependent rules → warn only (implemented).
+2. Hand-written comments → preserved by the ignore round trip (`a1ea10e`).
+3. JSON escape hatch (`e`) → kept.
+4. Destination directory picker → shipped: GUI `pickDestination` button; the TUI form binds `Ctrl-O` to a folder picker when Destination is focused.
 
-**Next step:** `/sc:design` (form state machine and widgets), then `/sc:workflow` for staging.
+*(No open questions remain.)*
 
 ## As built
 Implemented in `linux/mouzi/src/tui/{form,app,ui,mod}.rs`. Differences from the spec above:
