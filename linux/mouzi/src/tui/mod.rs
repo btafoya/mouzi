@@ -1,4 +1,6 @@
 mod app;
+mod form;
+mod picker;
 mod ui;
 
 use crate::common;
@@ -36,7 +38,7 @@ fn event_loop(terminal: &mut DefaultTerminal, dir: &Path) -> Result<(), String> 
                 if k.kind == KeyEventKind::Press {
                     let effect = update(&mut m, Msg::Key(k));
                     if let Some(effect) = effect {
-                        if effect == Effect::EditRules {
+                        if matches!(effect, Effect::EditRules) {
                             edit_rules(terminal, &mut m, dir)?;
                         } else {
                             exec(effect, &mut m, &tx);
@@ -67,6 +69,9 @@ fn refresh(m: &mut Model) {
     m.logs = db::get_recent_logs(200).unwrap_or_default();
     m.folders = db::get_watched_folders().unwrap_or_default();
     m.rules = db::get_rules().unwrap_or_default();
+    if let Ok(s) = db::get_settings() {
+        m.load_settings(s);
+    }
     m.clamp();
 }
 
@@ -86,6 +91,9 @@ fn exec(effect: Effect, m: &mut Model, tx: &Sender<Msg>) {
     let tx = tx.clone();
     let result: Result<String, String> = match effect {
         Effect::AddFolder(path) => add_folder(&path).map(|_| "folder added".into()),
+        // appended, never replacing: a picked file must not wipe the existing rules
+        Effect::ImportRules(path) => import_rules_file(&path, false)
+            .map(|n| format!("imported {n} rule(s) (added to existing)")),
         Effect::RemoveFolder(id) => {
             let _guard = operations::OPERATION_LOCK.lock().unwrap();
             db::remove_watched_folder(id)
@@ -110,6 +118,47 @@ fn exec(effect: Effect, m: &mut Model, tx: &Sender<Msg>) {
                     m.sel[3] = (idx as i32 + delta) as usize;
                     "rule moved".into()
                 })
+        }
+        Effect::SaveRule(rule) => {
+            let _guard = operations::OPERATION_LOCK.lock().unwrap();
+            let new = rule.id.is_none();
+            let saved = if new {
+                db::add_rule(&rule).map(|_| ())
+            } else {
+                db::update_rule(&rule)
+            };
+            saved
+                .map(|_| {
+                    format!(
+                        "rule {}: {}",
+                        if new { "added" } else { "saved" },
+                        rule.name
+                    )
+                })
+                .map_err(|e| e.to_string())
+        }
+        Effect::DeleteRule(id) => {
+            let _guard = operations::OPERATION_LOCK.lock().unwrap();
+            db::delete_rule(id)
+                .map(|_| "rule deleted".into())
+                .map_err(|e| e.to_string())
+        }
+        Effect::SaveSettings(s) => db::update_settings(&s)
+            .map(|_| "settings saved".into())
+            .map_err(|e| e.to_string()),
+        Effect::OpenIgnore(folder) => {
+            let patterns = mouzi_core::ignore::load_mouziignore(&folder);
+            m.mode = app::Mode::Ignore(app::Ignore {
+                folder,
+                patterns,
+                sel: 0,
+                input: None,
+            });
+            Ok(String::new())
+        }
+        Effect::SaveIgnore { folder, patterns } => {
+            mouzi_core::ignore::save_mouziignore(&folder, &patterns)
+                .map(|_| "ignore list saved".into())
         }
         Effect::Discard(id) => {
             operations::discard(&id);
@@ -182,7 +231,7 @@ fn edit_rules(terminal: &mut DefaultTerminal, m: &mut Model, dir: &Path) -> Resu
         .status();
     *terminal = ratatui::init();
     m.message = match ran {
-        Ok(s) if s.success() => import_rules_file(&file),
+        Ok(s) if s.success() => import_rules_file(&file, true),
         Ok(s) => Err(format!("editor exited with {s}")),
         Err(e) => Err(format!("cannot run {editor}: {e}")),
     }
@@ -192,12 +241,12 @@ fn edit_rules(terminal: &mut DefaultTerminal, m: &mut Model, dir: &Path) -> Resu
     Ok(())
 }
 
-fn import_rules_file(file: &Path) -> Result<usize, String> {
+fn import_rules_file(file: &Path, replace: bool) -> Result<usize, String> {
     let data = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
     let new: Vec<db::Rule> = serde_json::from_str(&data).map_err(|e| e.to_string())?;
     new.iter().try_for_each(rules::validate_rule)?;
     let _guard = operations::OPERATION_LOCK.lock().unwrap();
-    db::import_rules(&new, true)
+    db::import_rules(&new, replace)
 }
 
 #[cfg(test)]
@@ -224,13 +273,13 @@ mod tests {
         let mut edited = before.clone();
         edited[0].name = "Pictures".into();
         std::fs::write(&file, serde_json::to_string(&edited).unwrap()).unwrap();
-        assert_eq!(import_rules_file(&file).unwrap(), before.len());
+        assert_eq!(import_rules_file(&file, true).unwrap(), before.len());
         assert_eq!(db::get_rules().unwrap()[0].name, "Pictures");
         std::fs::write(&file, "not json").unwrap();
-        assert!(import_rules_file(&file).is_err());
+        assert!(import_rules_file(&file, true).is_err());
         edited[0].name = " ".into();
         std::fs::write(&file, serde_json::to_string(&edited).unwrap()).unwrap();
-        assert!(import_rules_file(&file).is_err());
+        assert!(import_rules_file(&file, true).is_err());
         assert_eq!(db::get_rules().unwrap()[0].name, "Pictures");
 
         // manual folder: preview -> apply -> undo
@@ -245,6 +294,50 @@ mod tests {
         let log = db::get_recent_logs(1).unwrap().remove(0);
         operations::undo_one(log.id.unwrap()).unwrap();
         assert!(watched.join("a.pdf").exists());
+
+        // editor effects write through to the DB
+        let (tx, _rx) = mpsc::channel();
+        let mut m = Model::new();
+        let mut r = form::blank_rule(99);
+        r.name = "Ebooks".into();
+        r.extensions = vec!["epub".into()];
+        r.destination = "Books".into();
+        exec(Effect::SaveRule(r), &mut m, &tx);
+        assert!(m.message.starts_with("rule added"), "{}", m.message);
+        let mut saved = db::get_rules()
+            .unwrap()
+            .into_iter()
+            .find(|x| x.name == "Ebooks")
+            .unwrap();
+        assert_eq!(saved.priority, 99);
+        saved.enabled = false;
+        exec(Effect::SaveRule(saved.clone()), &mut m, &tx);
+        assert!(
+            !db::get_rules()
+                .unwrap()
+                .iter()
+                .find(|x| x.name == "Ebooks")
+                .unwrap()
+                .enabled
+        );
+        exec(Effect::DeleteRule(saved.id.unwrap()), &mut m, &tx);
+        assert!(db::get_rules().unwrap().iter().all(|x| x.name != "Ebooks"));
+        let mut s = db::get_settings().unwrap();
+        s.grace_period_seconds = 42;
+        exec(Effect::SaveSettings(s), &mut m, &tx);
+        assert_eq!(db::get_settings().unwrap().grace_period_seconds, 42);
+        let folder = watched.to_string_lossy().to_string();
+        let patterns = vec!["*.tmp".to_string(), "node_modules/".to_string()];
+        exec(
+            Effect::SaveIgnore {
+                folder: folder.clone(),
+                patterns: patterns.clone(),
+            },
+            &mut m,
+            &tx,
+        );
+        exec(Effect::OpenIgnore(folder), &mut m, &tx);
+        assert!(matches!(&m.mode, app::Mode::Ignore(ig) if ig.patterns == patterns));
 
         // add_folder mirrors the GUI checks
         assert!(add_folder(watched.to_str().unwrap()).is_err());

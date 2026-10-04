@@ -1,4 +1,6 @@
-use super::app::{Mode, Model, Screen};
+use super::app::{Mode, Model, Purpose, Screen};
+use super::form::{shadowed, Form, Kind};
+use super::picker::Want;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -6,7 +8,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tab
 use ratatui::Frame;
 
 pub const MIN: (u16, u16) = (80, 24);
-const NAMES: [&str; 4] = ["1 Status", "2 Folders", "3 Review", "4 Rules"];
+const NAMES: [&str; 5] = ["1 Status", "2 Folders", "3 Review", "4 Rules", "5 Settings"];
 
 pub fn view(m: &Model, f: &mut Frame) {
     let area = f.area();
@@ -29,11 +31,64 @@ pub fn view(m: &Model, f: &mut Frame) {
             .highlight_style(Style::new().add_modifier(Modifier::REVERSED)),
         tabs,
     );
-    match m.screen {
-        Screen::Status => status(m, f, body),
-        Screen::Folders => folders(m, f, body),
-        Screen::Review => review(m, f, body),
-        Screen::Rules => rules(m, f, body),
+    match (&m.mode, m.screen) {
+        (Mode::Rule(e), _) => {
+            let title = match e.base.id {
+                None => "New rule (added last)".to_string(),
+                Some(_) => format!("Edit rule: {}", e.base.name),
+            };
+            form_view(f, body, &e.form, &title);
+        }
+        (Mode::Pick(p), _) => {
+            let items = p
+                .picker
+                .entries
+                .iter()
+                .map(|e| match (e.name.as_str(), e.dir) {
+                    ("..", _) => ListItem::new("../  (up)"),
+                    (n, true) => ListItem::new(format!("{n}/")),
+                    (n, false) => ListItem::new(n.to_string()),
+                })
+                .collect();
+            let what = match p.purpose {
+                Purpose::AddFolder => "folder to watch",
+                Purpose::Destination => "destination folder",
+                Purpose::ImportRules => "rules file (.json)",
+                Purpose::IgnorePattern => "entry to ignore",
+            };
+            list(
+                f,
+                body,
+                &format!("Choose {what}: {}", p.picker.dir.display()),
+                items,
+                p.picker.sel,
+            );
+        }
+        (Mode::Ignore(ig), _) => {
+            let items = if ig.patterns.is_empty() {
+                vec![ListItem::new("(no patterns)")]
+            } else {
+                ig.patterns
+                    .iter()
+                    .map(|p| ListItem::new(p.clone()))
+                    .collect()
+            };
+            list(
+                f,
+                body,
+                &format!("Ignore patterns: {}/.mouziignore", ig.folder),
+                items,
+                ig.sel,
+            );
+        }
+        (_, Screen::Status) => status(m, f, body),
+        (_, Screen::Folders) => folders(m, f, body),
+        (_, Screen::Review) => review(m, f, body),
+        (_, Screen::Rules) => rules(m, f, body),
+        (_, Screen::Settings) => match &m.settings {
+            Some(form) => form_view(f, body, form, "Settings (saved to the shared database)"),
+            None => f.render_widget(Paragraph::new("loading…"), body),
+        },
     }
     f.render_widget(
         Paragraph::new(vec![
@@ -45,14 +100,69 @@ pub fn view(m: &Model, f: &mut Frame) {
 }
 
 fn hint(m: &Model) -> String {
+    const FORM: &str =
+        "Tab/↓ next  Shift-Tab/↑ back  type to edit  ←/→/space change  Ctrl-O browse (Destination)  Ctrl-S save  Esc cancel";
     match (&m.mode, m.screen) {
-        (Mode::AddFolder(buf), _) => format!("add folder path: {buf}█   (Enter add, Esc cancel)"),
-        (Mode::ConfirmUndoAll, _) => "y confirm, any other key cancels".into(),
+        (Mode::Pick(p), _) => match (&p.picker.goto, &p.picker.error) {
+            (Some(buf), _) => format!("go to: {buf}█   (Enter go, Esc back)"),
+            (None, Some(e)) => format!("✗ {e}"),
+            (None, None) => match p.picker.want {
+                Want::Dir => "↑↓ move  Enter open  ← up  Space choose this folder  g type path  . hidden  ~ home  Esc cancel".into(),
+                Want::JsonFile => "↑↓ move  Enter open/choose  ← up  g type path  . hidden  ~ home  Esc cancel".into(),
+                Want::Entry => "↑↓ move  Enter/Space choose  . hidden  Esc cancel".into(),
+            },
+        },
+        (Mode::Confirm(_, prompt), _) => format!("{prompt}   (y confirms, any other key cancels)"),
+        (Mode::Rule(_), _) => FORM.into(),
+        (Mode::Ignore(ig), _) => match &ig.input {
+            Some((_, buf)) => format!("pattern: {buf}█   (Enter save, Esc cancel)"),
+            None => "n type  b browse  Enter edit  d delete  ↑↓ select  Esc close".into(),
+        },
         (_, Screen::Status) => "↑↓ select  u undo  A undo all  Tab switch  q quit".into(),
-        (_, Screen::Folders) => "a add  d remove  m mode  n only-new  q quit".into(),
+        (_, Screen::Folders) => "a add (browse)  d remove  m mode  n only-new  i ignore list  q quit".into(),
         (_, Screen::Review) => "r scan  space toggle  a all  Enter apply  x discard  q quit".into(),
-        (_, Screen::Rules) => "K/J move up/down  e edit as JSON in $EDITOR  q quit".into(),
+        (_, Screen::Rules) => {
+            "n new  Enter edit  c copy  d delete  space on/off  J/K move  i import  e JSON  q quit".into()
+        }
+        (_, Screen::Settings) => {
+            "Tab next field  type to edit  ←/→/space change  Ctrl-S save  Esc leave".into()
+        }
     }
+}
+
+fn form_view(f: &mut Frame, area: Rect, form: &Form, title: &str) {
+    let mut lines: Vec<Line> = form
+        .fields
+        .iter()
+        .enumerate()
+        .map(|(i, fl)| {
+            let focused = i == form.focus;
+            let value = match &fl.kind {
+                Kind::Bool => {
+                    if fl.value == "true" {
+                        "[x]".to_string()
+                    } else {
+                        "[ ]".to_string()
+                    }
+                }
+                Kind::Choice(_) => format!("◀ {} ▶", fl.value),
+                Kind::Text => format!("{}{}", fl.value, if focused { "█" } else { "" }),
+            };
+            let line = Line::from(format!("{:<30} {value}", fl.label));
+            if focused {
+                line.style(Style::new().add_modifier(Modifier::REVERSED))
+            } else {
+                line
+            }
+        })
+        .collect();
+    if let Some(e) = &form.error {
+        lines.push(Line::from(format!("✗ {e}")).style(Style::new().fg(Color::Red)));
+    }
+    f.render_widget(
+        Paragraph::new(lines).block(Block::new().borders(Borders::ALL).title(title.to_string())),
+        area,
+    );
 }
 
 fn list(f: &mut Frame, area: Rect, title: &str, items: Vec<ListItem>, sel: usize) {
@@ -171,18 +281,25 @@ fn review(m: &Model, f: &mut Frame, area: Rect) {
 }
 
 fn rules(m: &Model, f: &mut Frame, area: Rect) {
+    let shadow = shadowed(&m.rules);
     let items = m
         .rules
         .iter()
-        .map(|r| {
+        .zip(shadow)
+        .map(|(r, shadowed)| {
             ListItem::new(format!(
-                "{:>3} {}{:<16} {:<28} {} → {}",
+                "{:>3} {}{:<16} {:<28} {} → {}{}",
                 r.priority,
                 if r.enabled { " " } else { "✗" },
                 r.name,
                 r.extensions.join(","),
                 r.action,
-                r.destination
+                r.destination,
+                if shadowed {
+                    "   (shadowed: an earlier rule takes these files)"
+                } else {
+                    ""
+                }
             ))
         })
         .collect();
@@ -208,6 +325,81 @@ mod tests {
             })
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    fn key(m: &mut Model, code: crossterm::event::KeyCode) {
+        use crossterm::event::{KeyEvent, KeyEventKind, KeyModifiers};
+        let k = KeyEvent::new_with_kind(code, KeyModifiers::NONE, KeyEventKind::Press);
+        super::super::app::update(m, super::super::app::Msg::Key(k));
+    }
+
+    #[test]
+    fn rule_form_settings_and_shadow_marker_render() {
+        use crossterm::event::KeyCode;
+        let mut m = Model::new();
+        let rule = |id: i64| {
+            let mut r = super::super::form::blank_rule(id as i32);
+            r.id = Some(id);
+            r.name = format!("rule{id}");
+            r.extensions = vec!["pdf".into()];
+            r.destination = "Docs".into();
+            r
+        };
+        m.rules = vec![rule(1), rule(2)];
+        m.screen = Screen::Rules;
+        assert!(render(&m, 110, 30).contains("(shadowed"));
+        key(&mut m, KeyCode::Char('n'));
+        let out = render(&m, 110, 30);
+        assert!(out.contains("New rule") && out.contains("Extensions") && out.contains("Ctrl-S"));
+        key(&mut m, KeyCode::Char('x'));
+        key(&mut m, KeyCode::Esc);
+        key(&mut m, KeyCode::Esc);
+        m.load_settings(super::super::form::tests_settings());
+        m.screen = Screen::Settings;
+        let out = render(&m, 110, 30);
+        assert!(
+            out.contains("Grace period") && out.contains("◀ en ▶") && out.contains("5 Settings")
+        );
+    }
+
+    #[test]
+    fn picker_renders_title_entries_and_hint() {
+        use crossterm::event::KeyCode;
+        let root = std::env::temp_dir().join(format!("mouzi-ui-pick-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("Pictures")).unwrap();
+        let mut m = Model::new();
+        m.screen = Screen::Folders;
+        key(&mut m, KeyCode::Char('a'));
+        key(&mut m, KeyCode::Char('g'));
+        for c in root.to_str().unwrap().chars() {
+            key(&mut m, KeyCode::Char(c));
+        }
+        key(&mut m, KeyCode::Enter);
+        let out = render(&m, 140, 30);
+        assert!(
+            out.contains("Choose folder to watch")
+                && out.contains("Pictures/")
+                && out.contains("../  (up)")
+        );
+        assert!(out.contains("Space choose this folder"));
+    }
+
+    #[test]
+    fn ignore_list_and_confirm_prompt_render() {
+        let mut m = Model::new();
+        m.mode = Mode::Ignore(super::super::app::Ignore {
+            folder: "/dl".into(),
+            patterns: vec!["*.tmp".into()],
+            sel: 0,
+            input: None,
+        });
+        let out = render(&m, 110, 30);
+        assert!(out.contains("/dl/.mouziignore") && out.contains("*.tmp"));
+        m.mode = Mode::Confirm(
+            Box::new(super::super::app::Effect::DeleteRule(1)),
+            "delete rule 'x'? y/n".into(),
+        );
+        assert!(render(&m, 110, 30).contains("y confirms"));
     }
 
     #[test]

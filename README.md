@@ -194,8 +194,8 @@ mouzi            # open the TUI
 
 - `mouzi daemon` watches `silent` folders and organizes files after the grace period. Logs: `journalctl --user -u mouzi`.
 - The TUI edits the same database; the daemon picks changes up within about a second.
-- Screens: **Status/History** (undo), **Folders**, **Review** (preview, select, apply), **Rules** (reorder; `e` edits all rules as JSON in `$VISUAL`/`$EDITOR`).
-- Settings and `.mouziignore` are edited as files; the database is `~/.local/share/mouzi/mouzi.db`.
+- Screens: **Status/History** (undo), **Folders** (`a` add with a folder browser, remove, mode, only-new, `i` = ignore list; `b` there browses entries to ignore), **Review** (preview, select, apply), **Rules** (`n` new, `Enter` edit, `c` copy, `d` delete, `space` on/off, `J`/`K` reorder, `i` import a `.json` file (added to existing rules), `e` JSON in `$VISUAL`/`$EDITOR`), **Settings** (grace period, lock check, language, schedule). Forms validate as you type; `Ctrl-S` saves, `Esc` cancels; `Ctrl-O` on a rule's Destination opens the folder browser (stored relative to the watched folder when inside it). In any browser: `g` types a path, `.` shows hidden files, `~` goes home.
+- Everything is stored in the shared database, `~/.local/share/mouzi/mouzi.db`.
 - To keep the service running after logout: `loginctl enable-linger $USER`.
 - Watch limit errors: raise `fs.inotify.max_user_watches`.
 

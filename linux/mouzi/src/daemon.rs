@@ -229,6 +229,7 @@ impl Daemon {
             let _ = Command::new("notify-send")
                 .args([
                     "--app-name=Mouzi",
+                    "--", // file names and rule messages are untrusted: never parsed as options
                     "Mouzi",
                     &notification_body(&done, &lang),
                 ])
